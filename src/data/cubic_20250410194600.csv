@@ -1,2 +1,0 @@
-wscale;rto;rtt;mss;pmtu;rcvmss;advmss;cwnd;ssthresh;bytes_sent;bytes_retrans;bytes_acked;segs_out;segs_in;data_segs_out;lastrcv;delivered;rcv_space;rcv_ssthresh;loss_ratio;tcp_type
-6.6;2548;783.989;1448;1448;1448;1448;11;24;100;0;0;0;2;12;240;0;14480;64088;0.0;cubic

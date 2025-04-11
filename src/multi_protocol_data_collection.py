@@ -114,7 +114,7 @@ def collect_tcp_data_with_multiple_switches(net, total_duration=300, switch_inte
     print(f"Starting data collection for {total_duration} seconds (switching algorithm every {switch_interval} seconds)...")
     
     # Capture data every 2 seconds for the duration
-    cmd = f"for i in $(seq 1 {total_duration/2}); do echo '--- Time: $i seconds ---' >> {raw_log}; ss -tiepm --tcp -o state established >> {raw_log}; sleep 2; done &"
+    cmd = f"for i in $(seq 1 {total_duration/2}); do echo '--- Time: $i seconds ---' >> {raw_log}; ss -tiepm --tcp -o state established >> {raw_log}; sleep 1; done &"
     ss_pid = h1.cmd(cmd + " echo $!")
     ss_pid = ss_pid.strip()
     

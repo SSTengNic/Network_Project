@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Default values
-DURATION=300
+DURATION=3000
 INTERVAL=30
 
 # Parse command line arguments
