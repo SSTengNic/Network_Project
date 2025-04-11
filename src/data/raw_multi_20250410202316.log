@@ -1,0 +1,88 @@
+
+--- TCP Algorithm Changed to: cubic ---
+--- Time: $i seconds ---
+Recv-Q    Send-Q            Local Address:Port            Peer Address:Port     
+0         79640                  10.0.0.1:46046               10.0.0.2:5001      users:(("iperf",pid=18795,fd=3)) timer:(on,1.456ms,0) ino:197605 sk:1 <->
+	 skmem:(r0,rb87380,t0,tb87380,f8808,w89496,o0,bl0,d0) ts sack cubic wscale:9,9 rto:2456 rtt:817.512/408.756 mss:1448 pmtu:1500 rcvmss:536 advmss:1448 cwnd:10 bytes_acked:1 segs_out:12 segs_in:1 data_segs_out:10 send 141.7Kbps lastsnd:188 lastrcv:192 lastack:192 pacing_rate 283.4Kbps busy:188ms unacked:10 rcv_space:14480 rcv_ssthresh:42242 notsent:65160 minrtt:817.512
+--- Time: $i seconds ---
+Recv-Q    Send-Q            Local Address:Port            Peer Address:Port     
+0         1251072                10.0.0.1:46046               10.0.0.2:5001      users:(("iperf",pid=18795,fd=3)) timer:(on,112ms,0) ino:197605 sk:1 <->
+	 skmem:(r0,rb87380,t0,tb1383936,f160512,w1289472,o0,bl0,d1) ts sack cubic wscale:9,9 rto:256 rtt:52.381/1.161 mss:1448 pmtu:1500 rcvmss:536 advmss:1448 cwnd:21 ssthresh:15 bytes_acked:3376737 segs_out:2378 segs_in:1226 data_segs_out:2375 send 4.6Mbps lastsnd:4 lastrcv:4052 lastack:8 pacing_rate 5.6Mbps delivery_rate 4.3Mbps busy:4048ms rwnd_limited:56ms(1.4%) unacked:21 retrans:0/21 rcv_space:14480 rcv_ssthresh:42242 notsent:1220664 minrtt:48.351
+--- Time: $i seconds ---
+Recv-Q    Send-Q            Local Address:Port            Peer Address:Port     
+0         1132336                10.0.0.1:46046               10.0.0.2:5001      users:(("iperf",pid=18795,fd=3)) timer:(on,112ms,0) ino:197605 sk:1 <->
+	 skmem:(r0,rb87380,t0,tb1383936,f285648,w1164336,o0,bl0,d1) ts sack cubic wscale:9,9 rto:252 rtt:51.424/1.348 mss:1448 pmtu:1500 rcvmss:536 advmss:1448 cwnd:15 ssthresh:14 bytes_acked:4928993 segs_out:3453 segs_in:1730 data_segs_out:3450 send 3.4Mbps lastrcv:7312 pacing_rate 4.1Mbps delivery_rate 3.2Mbps busy:7308ms rwnd_limited:56ms(0.8%) unacked:14 retrans:0/31 rcv_space:14480 rcv_ssthresh:42242 notsent:1112064 minrtt:47.272
+--- Time: $i seconds ---
+Recv-Q    Send-Q            Local Address:Port            Peer Address:Port     
+0         1316232                10.0.0.1:46046               10.0.0.2:5001      users:(("iperf",pid=18795,fd=3)) timer:(on,104ms,0) ino:197605 sk:1 <->
+	 skmem:(r0,rb87380,t0,tb1383936,f100472,w1349512,o0,bl0,d1) ts sack cubic wscale:9,9 rto:252 rtt:51.725/1.06 mss:1448 pmtu:1500 rcvmss:536 advmss:1448 cwnd:12 ssthresh:9 bytes_acked:5917977 segs_out:4143 segs_in:2058 data_segs_out:4140 send 2.7Mbps lastsnd:8 lastrcv:10264 lastack:8 pacing_rate 3.2Mbps delivery_rate 2.2Mbps busy:10260ms rwnd_limited:56ms(0.5%) unacked:11 retrans:0/41 rcv_space:14480 rcv_ssthresh:42242 notsent:1300304 minrtt:47.272
+--- Time: $i seconds ---
+Recv-Q    Send-Q            Local Address:Port            Peer Address:Port     
+0         1349536                10.0.0.1:46046               10.0.0.2:5001      users:(("iperf",pid=18795,fd=3)) timer:(on,096ms,0) ino:197605 sk:1 <->
+	 skmem:(r0,rb87380,t0,tb1383936,f76640,w1381536,o0,bl0,d1) ts sack cubic wscale:9,9 rto:256 rtt:53.798/5.541 mss:1448 pmtu:1500 rcvmss:536 advmss:1448 cwnd:8 ssthresh:4 bytes_acked:6601433 segs_out:4621 segs_in:2285 data_segs_out:4618 send 1.7Mbps lastsnd:28 lastrcv:13152 lastack:28 pacing_rate 2.1Mbps delivery_rate 1.4Mbps busy:13148ms rwnd_limited:56ms(0.4%) unacked:7 retrans:0/51 rcv_space:14480 rcv_ssthresh:42242 notsent:1339400 minrtt:47.272
+--- Time: $i seconds ---
+Recv-Q    Send-Q            Local Address:Port            Peer Address:Port     
+0         1375600                10.0.0.1:46046               10.0.0.2:5001      users:(("iperf",pid=18795,fd=3)) timer:(on,100ms,0) ino:197605 sk:1 <->
+	 skmem:(r0,rb87380,t0,tb1383936,f49296,w1408880,o0,bl0,d1) ts sack cubic wscale:9,9 rto:256 rtt:52.817/4.226 mss:1448 pmtu:1500 rcvmss:536 advmss:1448 cwnd:9 ssthresh:8 bytes_acked:7487609 segs_out:5243 segs_in:2583 data_segs_out:5240 send 2.0Mbps lastsnd:16 lastrcv:16160 lastack:16 pacing_rate 2.4Mbps delivery_rate 1.8Mbps busy:16156ms rwnd_limited:56ms(0.3%) unacked:9 retrans:0/59 rcv_space:14480 rcv_ssthresh:42242 notsent:1362568 minrtt:47.272
+--- Time: $i seconds ---
+Recv-Q    Send-Q            Local Address:Port            Peer Address:Port     
+0         1327816                10.0.0.1:46046               10.0.0.2:5001      users:(("iperf",pid=18795,fd=3)) timer:(on,104ms,0) ino:197605 sk:1 <->
+	 skmem:(r0,rb87380,t0,tb1383936,f95800,w1362376,o0,bl0,d1) ts sack cubic wscale:9,9 rto:252 rtt:51.215/0.606 mss:1448 pmtu:1500 rcvmss:536 advmss:1448 cwnd:13 ssthresh:11 bytes_acked:8708273 segs_out:6099 segs_in:2992 data_segs_out:6096 send 2.9Mbps lastsnd:8 lastrcv:19368 lastack:8 pacing_rate 3.5Mbps delivery_rate 2.7Mbps busy:19364ms rwnd_limited:56ms(0.3%) unacked:12 retrans:0/69 rcv_space:14480 rcv_ssthresh:42242 notsent:1310440 minrtt:47.272
+--- Time: $i seconds ---
+Recv-Q    Send-Q            Local Address:Port            Peer Address:Port     
+0         1353880                10.0.0.1:46046               10.0.0.2:5001      users:(("iperf",pid=18795,fd=3)) timer:(on,248ms,0) ino:197605 sk:1 <->
+	 skmem:(r0,rb87380,t0,tb1383936,f62056,w1396120,o0,bl0,d1) ts sack cubic wscale:9,9 rto:256 rtt:53.223/1.862 mss:1448 pmtu:1500 rcvmss:536 advmss:1448 cwnd:18 ssthresh:18 bytes_acked:10832489 segs_out:7594 segs_in:3691 data_segs_out:7591 send 3.9Mbps lastsnd:12 lastrcv:22860 lastack:8 pacing_rate 8.9Mbps delivery_rate 5.5Mbps busy:22856ms rwnd_limited:56ms(0.2%) unacked:34 retrans:2/75 lost:2 sacked:16 rcv_space:14480 rcv_ssthresh:42242 notsent:1304648 minrtt:47.272
+--- Time: $i seconds ---
+Recv-Q    Send-Q            Local Address:Port            Peer Address:Port     
+0         1327816                10.0.0.1:46046               10.0.0.2:5001      users:(("iperf",pid=18795,fd=3)) timer:(on,100ms,0) ino:197605 sk:1 <->
+	 skmem:(r0,rb87380,t0,tb1383936,f63032,w1362376,o0,bl0,d1) ts sack cubic wscale:9,9 rto:256 rtt:52.46/0.684 mss:1448 pmtu:1500 rcvmss:536 advmss:1448 cwnd:13 ssthresh:9 bytes_acked:11966273 segs_out:8367 segs_in:4059 data_segs_out:8364 send 2.9Mbps lastsnd:16 lastrcv:25988 lastack:16 pacing_rate 3.4Mbps delivery_rate 2.6Mbps busy:25984ms rwnd_limited:56ms(0.2%) unacked:12 retrans:0/87 rcv_space:14480 rcv_ssthresh:42242 notsent:1310440 minrtt:47.272
+--- Time: $i seconds ---
+Recv-Q    Send-Q            Local Address:Port            Peer Address:Port     
+0         1300304                10.0.0.1:46046               10.0.0.2:5001      users:(("iperf",pid=18795,fd=3)) timer:(on,236ms,0) ino:197605 sk:1 <->
+	 skmem:(r0,rb87380,t0,tb1383936,f112304,w1333584,o0,bl0,d1) ts sack cubic wscale:9,9 rto:256 rtt:53.302/2.163 mss:1448 pmtu:1500 rcvmss:536 advmss:1448 cwnd:9 ssthresh:9 bytes_acked:12840865 segs_out:8986 segs_in:4356 data_segs_out:8983 send 2.0Mbps lastsnd:20 lastrcv:28772 lastack:20 pacing_rate 3.9Mbps delivery_rate 2.3Mbps busy:28768ms rwnd_limited:56ms(0.2%) unacked:17 retrans:2/97 lost:2 sacked:8 rcv_space:14480 rcv_ssthresh:42242 notsent:1275688 minrtt:46.847
+
+--- TCP Algorithm Changed to: bbr ---
+--- Time: $i seconds ---
+Recv-Q    Send-Q            Local Address:Port            Peer Address:Port     
+0         1361120                10.0.0.1:46046               10.0.0.2:5001      users:(("iperf",pid=18795,fd=3)) timer:(on,004ms,0) ino:197605 sk:1 <->
+	 skmem:(r0,rb87380,t0,tb1383936,f48928,w1396960,o0,bl0,d1) ts sack cubic wscale:9,9 rto:256 rtt:54.177/6.844 mss:1448 pmtu:1500 rcvmss:536 advmss:1448 cwnd:12 ssthresh:7 bytes_acked:13757449 segs_out:9624 segs_in:4657 data_segs_out:9621 send 2.6Mbps lastsnd:16 lastrcv:31680 lastack:16 pacing_rate 3.1Mbps delivery_rate 2.0Mbps busy:31676ms rwnd_limited:56ms(0.2%) unacked:14 retrans:0/105 sacked:2 rcv_space:14480 rcv_ssthresh:42242 notsent:1340848 minrtt:46.847
+--- Time: $i seconds ---
+Recv-Q    Send-Q            Local Address:Port            Peer Address:Port     
+0         1248176                10.0.0.1:46046               10.0.0.2:5001      users:(("iperf",pid=18795,fd=3)) timer:(on,116ms,0) ino:197605 sk:1 <->
+	 skmem:(r0,rb87380,t0,tb1383936,f167760,w1290416,o0,bl0,d1) ts sack cubic wscale:9,9 rto:256 rtt:52.487/1.851 mss:1448 pmtu:1500 rcvmss:536 advmss:1448 cwnd:27 ssthresh:11 bytes_acked:14978113 segs_out:10486 segs_in:5058 data_segs_out:10483 send 6.0Mbps lastrcv:34852 pacing_rate 7.2Mbps delivery_rate 4.6Mbps busy:34848ms rwnd_limited:56ms(0.2%) unacked:27 retrans:0/111 rcv_space:14480 rcv_ssthresh:42242 notsent:1209080 minrtt:46.847
+--- Time: $i seconds ---
+Recv-Q    Send-Q            Local Address:Port            Peer Address:Port     
+0         1385736                10.0.0.1:46046               10.0.0.2:5001      users:(("iperf",pid=18795,fd=3)) timer:(on,112ms,0) ino:197605 sk:1 <->
+	 skmem:(r0,rb87380,t0,tb1383936,f37880,w1420296,o0,bl0,d1) ts sack cubic wscale:9,9 rto:256 rtt:53.642/6.126 mss:1448 pmtu:1500 rcvmss:536 advmss:1448 cwnd:12 ssthresh:8 bytes_acked:16274073 segs_out:11379 segs_in:5483 data_segs_out:11376 send 2.6Mbps lastsnd:8 lastrcv:37848 lastack:8 pacing_rate 3.1Mbps delivery_rate 2.4Mbps busy:37844ms rwnd_limited:56ms(0.1%) unacked:12 retrans:0/124 rcv_space:14480 rcv_ssthresh:42242 notsent:1368360 minrtt:46.847
+--- Time: $i seconds ---
+Recv-Q    Send-Q            Local Address:Port            Peer Address:Port     
+0         1369808                10.0.0.1:46046               10.0.0.2:5001      users:(("iperf",pid=18795,fd=3)) timer:(on,112ms,0) ino:197605 sk:1 <->
+	 skmem:(r0,rb87380,t0,tb1383936,f51248,w1406928,o0,bl0,d1) ts sack cubic wscale:9,9 rto:252 rtt:51.459/0.938 mss:1448 pmtu:1500 rcvmss:536 advmss:1448 cwnd:16 ssthresh:11 bytes_acked:17593201 segs_out:12299 segs_in:5916 data_segs_out:12296 send 3.6Mbps lastrcv:40872 pacing_rate 4.3Mbps delivery_rate 3.6Mbps busy:40868ms rwnd_limited:56ms(0.1%) unacked:15 retrans:0/130 rcv_space:14480 rcv_ssthresh:42242 notsent:1348088 minrtt:46.847
+--- Time: $i seconds ---
+Recv-Q    Send-Q            Local Address:Port            Peer Address:Port     
+0         1342296                10.0.0.1:46046               10.0.0.2:5001      users:(("iperf",pid=18795,fd=3)) timer:(on,112ms,0) ino:197605 sk:1 <->
+	 skmem:(r0,rb87380,t0,tb1383936,f64936,w1376856,o0,bl0,d1) ts sack cubic wscale:9,9 rto:256 rtt:52.73/2.443 mss:1448 pmtu:1500 rcvmss:536 advmss:1448 cwnd:13 ssthresh:12 bytes_acked:18601009 segs_out:13003 segs_in:6251 data_segs_out:13000 send 2.9Mbps lastsnd:4 lastrcv:44048 lastack:4 pacing_rate 3.4Mbps delivery_rate 2.3Mbps busy:44044ms rwnd_limited:56ms(0.1%) unacked:12 retrans:0/141 rcv_space:14480 rcv_ssthresh:42242 notsent:1322024 minrtt:46.847
+--- Time: $i seconds ---
+Recv-Q    Send-Q            Local Address:Port            Peer Address:Port     
+0         1324920                10.0.0.1:46046               10.0.0.2:5001      users:(("iperf",pid=18795,fd=3)) timer:(on,124ms,0) ino:197605 sk:1 <->
+	 skmem:(r0,rb87380,t0,tb1383936,f82568,w1363320,o0,bl0,d1) ts sack cubic wscale:9,9 rto:260 rtt:57.352/6.078 mss:1448 pmtu:1500 rcvmss:536 advmss:1448 cwnd:19 ssthresh:11 bytes_acked:19658049 segs_out:13748 segs_in:6603 data_segs_out:13745 send 3.8Mbps lastrcv:47124 pacing_rate 4.6Mbps delivery_rate 3.3Mbps busy:47120ms rwnd_limited:56ms(0.1%) unacked:19 retrans:0/149 rcv_space:14480 rcv_ssthresh:42242 notsent:1297408 minrtt:46.847
+--- Time: $i seconds ---
+Recv-Q    Send-Q            Local Address:Port            Peer Address:Port     
+0         1297408                10.0.0.1:46046               10.0.0.2:5001      users:(("iperf",pid=18795,fd=3)) timer:(on,108ms,0) ino:197605 sk:1 <->
+	 skmem:(r0,rb87380,t0,tb1383936,f96512,w1337088,o0,bl0,d1) ts sack cubic wscale:9,9 rto:256 rtt:52.914/1.236 mss:1448 pmtu:1500 rcvmss:536 advmss:1448 cwnd:22 ssthresh:15 bytes_acked:21379721 segs_out:14946 segs_in:7172 data_segs_out:14943 send 4.8Mbps lastsnd:8 lastrcv:50192 lastack:8 pacing_rate 5.8Mbps delivery_rate 4.2Mbps busy:50188ms rwnd_limited:56ms(0.1%) unacked:22 retrans:0/155 rcv_space:14480 rcv_ssthresh:42242 notsent:1265552 minrtt:46.847
+--- Time: $i seconds ---
+Recv-Q    Send-Q            Local Address:Port            Peer Address:Port     
+0         1246728                10.0.0.1:46046               10.0.0.2:5001      users:(("iperf",pid=18795,fd=3)) timer:(on,108ms,0) ino:197605 sk:1 <->
+	 skmem:(r0,rb87380,t0,tb1383936,f120824,w1280008,o0,bl0,d1) ts sack cubic wscale:9,9 rto:256 rtt:52.432/5.048 mss:1448 pmtu:1500 rcvmss:536 advmss:1448 cwnd:13 ssthresh:11 bytes_acked:22472961 segs_out:15702 segs_in:7535 data_segs_out:15699 send 2.9Mbps lastsnd:8 lastrcv:53040 lastack:8 pacing_rate 3.4Mbps delivery_rate 2.9Mbps busy:53036ms rwnd_limited:56ms(0.1%) unacked:13 retrans:0/165 rcv_space:14480 rcv_ssthresh:42242 notsent:1227904 minrtt:46.847
+--- Time: $i seconds ---
+Recv-Q    Send-Q            Local Address:Port            Peer Address:Port     
+0         1204736                10.0.0.1:46046               10.0.0.2:5001      users:(("iperf",pid=18795,fd=3)) timer:(on,108ms,0) ino:197605 sk:1 <->
+	 skmem:(r0,rb87380,t0,tb1383936,f132608,w1235456,o0,bl0,d1) ts sack cubic wscale:9,9 rto:256 rtt:55.294/4.035 mss:1448 pmtu:1500 rcvmss:536 advmss:1448 cwnd:10 ssthresh:9 bytes_acked:23362033 segs_out:16325 segs_in:7830 data_segs_out:16322 send 2.1Mbps lastsnd:12 lastrcv:56124 lastack:12 pacing_rate 2.5Mbps delivery_rate 1.8Mbps busy:56120ms rwnd_limited:56ms(0.1%) unacked:10 retrans:0/177 rcv_space:14480 rcv_ssthresh:42242 notsent:1190256 minrtt:46.847
+--- Time: $i seconds ---
+Recv-Q    Send-Q            Local Address:Port            Peer Address:Port     
+0         1281480                10.0.0.1:46046               10.0.0.2:5001      users:(("iperf",pid=18795,fd=3)) timer:(on,088ms,0) ino:197605 sk:1 <->
+	 skmem:(r0,rb87380,t0,tb1383936,f128312,w1313480,o0,bl0,d1) ts sack cubic wscale:9,9 rto:256 rtt:52.365/2.008 mss:1448 pmtu:1500 rcvmss:536 advmss:1448 cwnd:10 ssthresh:9 bytes_acked:24262689 segs_out:16956 segs_in:8131 data_segs_out:16953 send 2.2Mbps lastsnd:28 lastrcv:59100 lastack:28 pacing_rate 2.7Mbps delivery_rate 2.1Mbps busy:59096ms rwnd_limited:56ms(0.1%) unacked:10 retrans:0/186 rcv_space:14480 rcv_ssthresh:42242 notsent:1267000 minrtt:46.847
+--- Time: $i seconds ---
+Recv-Q     Send-Q            Local Address:Port           Peer Address:Port     
+--- Time: $i seconds ---
+Recv-Q     Send-Q            Local Address:Port           Peer Address:Port     
