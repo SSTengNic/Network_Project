@@ -26,6 +26,10 @@ import numpy as np
 import pandas as pd
 import os
 
+MODEL_FEATURE_COLUMNS = ['wscale', 'rto', 'rtt', 'mss', 'rcvmss', 'advmss', 'cwnd', 'ssthresh',
+       'bytes_acked', 'segs_out', 'segs_in', 'data_segs_out', 'lastrcv',
+       'rcv_ssthresh', 'timestamp'] # tcp_type is also used for the switch model, but will be passed into predict_best_algorithm separately
+
 class LSTM_pt(torch.nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, output_size):
         super(LSTM_pt, self).__init__()
@@ -285,31 +289,31 @@ def predict_best_algorithm(current_algorithm, last_15_data_points, switching_thr
             return 'cubic'
 
 # Example usage:
-if __name__ == "__main__":
-    # Example data (should be replaced with actual data)
-    example_data = np.random.rand(15, 15)  # 15 time steps, 15 features
+# if __name__ == "__main__":
+#     # Example data (should be replaced with actual data)
+#     example_data = np.random.rand(15, 15)  # 15 time steps, 15 features
 
-    print("=== Testing with default threshold (0.01) ===")
-    # Example prediction with Reno
-    print("\nTesting with Reno as current algorithm:")
-    result_reno = predict_best_algorithm('reno', example_data)
-    print(f"Recommended algorithm: {result_reno}")
+#     print("=== Testing with default threshold (0.01) ===")
+#     # Example prediction with Reno
+#     print("\nTesting with Reno as current algorithm:")
+#     result_reno = predict_best_algorithm('reno', example_data)
+#     print(f"Recommended algorithm: {result_reno}")
 
-    # Example prediction with Cubic
-    print("\nTesting with Cubic as current algorithm:")
-    result_cubic = predict_best_algorithm('cubic', example_data)
-    print(f"Recommended algorithm: {result_cubic}")
+#     # Example prediction with Cubic
+#     print("\nTesting with Cubic as current algorithm:")
+#     result_cubic = predict_best_algorithm('cubic', example_data)
+#     print(f"Recommended algorithm: {result_cubic}")
 
-    print("\n=== Testing with higher threshold (0.05) ===")
-    # Example prediction with Reno and higher threshold
-    print("\nTesting with Reno as current algorithm:")
-    result_reno = predict_best_algorithm('reno', example_data, switching_threshold=0.05)
-    print(f"Recommended algorithm: {result_reno}")
+#     print("\n=== Testing with higher threshold (0.05) ===")
+#     # Example prediction with Reno and higher threshold
+#     print("\nTesting with Reno as current algorithm:")
+#     result_reno = predict_best_algorithm('reno', example_data, switching_threshold=0.05)
+#     print(f"Recommended algorithm: {result_reno}")
 
-    # Example prediction with Cubic and higher threshold
-    print("\nTesting with Cubic as current algorithm:")
-    result_cubic = predict_best_algorithm('cubic', example_data, switching_threshold=0.05)
-    print(f"Recommended algorithm: {result_cubic}")
+#     # Example prediction with Cubic and higher threshold
+#     print("\nTesting with Cubic as current algorithm:")
+#     result_cubic = predict_best_algorithm('cubic', example_data, switching_threshold=0.05)
+#     print(f"Recommended algorithm: {result_cubic}")
 
 # --- Data Storage ---
 # A deque automatically maintains a fixed size, discarding oldest entries
@@ -620,14 +624,19 @@ def main():
 
                 # Example: Access the full history (list of dictionaries)
                 # full_history_list = list(data_history)
-                if len(full_history) > 0:
-                    print(f"History has {len(full_history)} entries. Oldest timestamp: {full_history[0]['timestamp']:.2f}")
+                if len(data_history) > 0:
+                    print(f"History has {len(data_history)} entries. Oldest timestamp: {data_history[0]['timestamp']:.2f}")
                 # --------------------------------------------
-                if len(full_history) > 15:
+                if len(data_history) >= args.history:
                     # Feed data into model and predict best algorithm
                     # Convert deque to numpy array for model input
-                    input_data = np.array([list(data.values()) for data in data_history])
+                    input_data_list = []
+                    for data_point in data_history:
+                        row = [data_point.get(col) for col in MODEL_FEATURE_COLUMNS]
+                        input_data_list.append(row)
+                    input_data = np.array(input_data_list)
                     print(input_data) # Debug: Show input data for model
+
                     result = predict_best_algorithm(current_algo, input_data)
                     print(f"Recommended algorithm: {result}")
 
