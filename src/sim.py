@@ -621,7 +621,7 @@ def main():
                 # Example: Access the full history (list of dictionaries)
                 # full_history_list = list(data_history)
                 if len(full_history) > 0:
-                    print(f"History has {len(full_history_list)} entries. Oldest timestamp: {full_history_list[0]['timestamp']:.2f}")
+                    print(f"History has {len(full_history)} entries. Oldest timestamp: {full_history[0]['timestamp']:.2f}")
                 # --------------------------------------------
                 if len(full_history) > 15:
                     # Feed data into model and predict best algorithm
