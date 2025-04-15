@@ -46,9 +46,9 @@ class SimpleTopo(Topo):
         self.addLink(
             s1, 
             s2, 
-            bw=10, 
-            delay='20ms', 
-            loss=1,
+            bw=50, 
+            delay='10ms', 
+            loss=0,
             max_queue_size=100
         )
 
@@ -82,7 +82,7 @@ def collect_tcp_data(net, mode="reno", total_duration=60, switch_interval=30):
         net: Mininet network instance
         mode: One of "reno", "cubic", or "switch"
         total_duration: Total duration of data collection in seconds
-        switch_interval: Time interval (in seconds) to switch TCP algorithms (only for "switch" mode)
+        switch_interval: Time interval (in seconds) to switch TCP algorithms (only for switch mode)
         
     Returns:
         Path to the raw log file
@@ -94,6 +94,7 @@ def collect_tcp_data(net, mode="reno", total_duration=60, switch_interval=30):
     # Create timestamp for filenames
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     raw_log = f"{data_dir}/raw_{mode}_{timestamp}.log"
+    cwnd_log = f"{data_dir}/cwnd_{mode}_{timestamp}.log"
     
     # Get hosts
     h1, h2 = net.get('h1', 'h2')
@@ -108,37 +109,78 @@ def collect_tcp_data(net, mode="reno", total_duration=60, switch_interval=30):
     
     print(f"Initial TCP congestion control algorithm: {current_algo}")
     
-    # Start iperf server on h2
+    # Start iperf server on h2 (use multiple ports to allow separate connections)
     h2.cmd('iperf -s -p 5001 > /dev/null &')
+    h2.cmd('iperf -s -p 5002 > /dev/null &')  # Second port for after protocol switch
     print("Started iperf server on h2")
     time.sleep(1)  # Wait for server to start
+    
+    # Create a file to track cwnd updates
+    with open(cwnd_log, 'w') as f:
+        f.write("timestamp;algorithm;cwnd\n")
     
     # Start data collection on h1
     print(f"Starting data collection for {total_duration} seconds...")
     
-    # Capture data every 2 seconds for the duration
-    cmd = f"for i in $(seq 1 {total_duration/2}); do echo '--- Time: $i seconds ---' >> {raw_log}; ss -tiepm --tcp -o state established >> {raw_log}; sleep 1; done &"
+    # Custom function to continuously monitor cwnd values
+    monitor_cmd = f"""
+    while true; do
+        algo=$(cat /proc/sys/net/ipv4/tcp_congestion_control)
+        conn=$(ss -it | grep -A1 "${h2.IP()}")
+        if [ ! -z "$conn" ]; then
+            cwnd=$(echo "$conn" | grep -o 'cwnd:[0-9]*' | head -n1 | cut -d':' -f2)
+            if [ ! -z "$cwnd" ]; then
+                echo "$(date +%s.%N);$algo;$cwnd" >> {cwnd_log}
+            fi
+        fi
+        sleep 0.5
+    done &
+    """
+    h1.cmd(monitor_cmd)
+    monitor_pid = h1.cmd("echo $!")
+    
+    # Capture data every second for the duration
+    cmd = f"for i in $(seq 1 {total_duration}); do echo '--- Time: $i seconds ---' >> {raw_log}; ss -tiepm --tcp -o state established >> {raw_log}; sleep 1; done &"
     ss_pid = h1.cmd(cmd + " echo $!")
     ss_pid = ss_pid.strip()
     
-    # Start iperf client on h1 for the entire duration
-    h1.cmd(f'iperf -c {h2.IP()} -p 5001 -t {total_duration} -i 1 > /dev/null &')
-    print(f"Started iperf client on h1 for {total_duration} seconds")
-    
-    # For switch mode, switch algorithm after specified interval
+    # For switch mode, run in two phases with different connections
     if mode == "switch":
+        # First phase: Run with first algorithm (Reno)
+        print(f"First phase: Running with {algorithms[0]} for {switch_interval} seconds...")
+        h1.cmd(f'iperf -c {h2.IP()} -p 5001 -t {switch_interval} -i 1 > /dev/null &')
+        iperf_pid = h1.cmd("echo $!")
+        iperf_pid = iperf_pid.strip()
+        
         # Wait until it's time to switch algorithm
-        print(f"Will switch from Reno to Cubic after {switch_interval} seconds...")
+        print(f"Will switch from {algorithms[0]} to {algorithms[1]} after {switch_interval} seconds...")
         time.sleep(switch_interval)
         
-        # Switch to Cubic
+        # Stop the first iperf client
+        if iperf_pid:
+            h1.cmd(f'kill -9 {iperf_pid}')
+        time.sleep(1)  # Wait for connection to fully close
+        
+        # Switch to second algorithm (Cubic)
         current_algo = switch_tcp_algorithm(h1, algorithms[1], raw_log)
         print(f"Now using TCP congestion control algorithm: {current_algo}")
-    
-    # Wait for the experiment to complete
-    remaining_time = total_duration if mode != "switch" else total_duration - switch_interval
-    print(f"Waiting for remaining {remaining_time} seconds...")
-    time.sleep(remaining_time + 5)  # Add buffer time
+        
+        # Second phase: Run with second algorithm (Cubic)
+        # Use a different port to ensure a new TCP connection with the new algorithm
+        print(f"Second phase: Running with {algorithms[1]} for {total_duration - switch_interval} seconds...")
+        h1.cmd(f'iperf -c {h2.IP()} -p 5002 -t {total_duration - switch_interval} -i 1 > /dev/null &')
+        
+        # Wait for the second phase to complete
+        print(f"Waiting for the remaining {total_duration - switch_interval} seconds...")
+        time.sleep(total_duration - switch_interval + 5)  # Add buffer time
+    else:
+        # Single algorithm mode - simpler
+        h1.cmd(f'iperf -c {h2.IP()} -p 5001 -t {total_duration} -i 1 > /dev/null &')
+        print(f"Started iperf client on h1 for {total_duration} seconds")
+        
+        # Wait for experiment to complete
+        print(f"Waiting for {total_duration} seconds...")
+        time.sleep(total_duration + 5)  # Add buffer time
     
     # Stop data collection
     print("Stopping data collection...")
@@ -148,11 +190,94 @@ def collect_tcp_data(net, mode="reno", total_duration=60, switch_interval=30):
         except:
             print(f"Warning: Could not kill process {ss_pid}")
     
+    if monitor_pid:
+        try:
+            h1.cmd(f'kill {monitor_pid}')
+        except:
+            print(f"Warning: Could not kill monitor process")
+    
     # Stop iperf
     h1.cmd('pkill -f iperf')
     h2.cmd('pkill -f iperf')
     
-    return raw_log
+    # Process cwnd data for easier analysis
+    process_cwnd_log(cwnd_log, mode, switch_interval if mode == "switch" else None)
+    
+    return raw_log, cwnd_log
+
+
+def process_cwnd_log(cwnd_log, mode, switch_point=None):
+    """Process the cwnd log file for analysis."""
+    try:
+        if not os.path.exists(cwnd_log):
+            print(f"Warning: CWND log file {cwnd_log} not found")
+            return
+            
+        with open(cwnd_log, 'r') as f:
+            lines = f.readlines()
+            
+        if len(lines) <= 1:  # Just the header or empty
+            print("Warning: No CWND data collected")
+            return
+            
+        # Process into DataFrame
+        processed_data = []
+        for line in lines[1:]:  # Skip header
+            try:
+                parts = line.strip().split(';')
+                if len(parts) >= 3:
+                    timestamp, algo, cwnd = parts
+                    processed_data.append({
+                        'timestamp': float(timestamp),
+                        'algorithm': algo,
+                        'cwnd': int(cwnd)
+                    })
+            except Exception as e:
+                print(f"Error parsing line: {line} - {e}")
+                
+        if not processed_data:
+            print("No valid CWND data found")
+            return
+            
+        df = pd.DataFrame(processed_data)
+        
+        # Convert to relative time
+        min_time = df['timestamp'].min()
+        df['relative_time'] = df['timestamp'] - min_time
+        
+        # For switch mode, ensure correct algorithm labels
+        if mode == "switch" and switch_point is not None:
+            # Mark data points before and after the switch point
+            df['phase'] = 'reno'
+            switch_time = min_time + switch_point
+            df.loc[df['timestamp'] > switch_time, 'phase'] = 'cubic'
+            print(f"Labeled {len(df[df['phase'] == 'reno'])} data points as reno and {len(df[df['phase'] == 'cubic'])} as cubic")
+            
+            # Override the algorithm column with our phase data
+            df['algorithm'] = df['phase']
+        
+        # Save processed file
+        output_csv = cwnd_log.replace('.log', '.csv')
+        df.to_csv(output_csv, index=False)
+        print(f"Processed {len(df)} CWND data points and saved to {output_csv}")
+        
+        # Print statistics
+        print(f"\nCWND Statistics:")
+        print(f"  Max cwnd: {df['cwnd'].max()}")
+        print(f"  Min cwnd: {df['cwnd'].min()}")
+        print(f"  Avg cwnd: {df['cwnd'].mean():.2f}")
+        
+        # If switch mode, print stats for each algorithm
+        if mode == "switch":
+            for algo in df['algorithm'].unique():
+                algo_df = df[df['algorithm'] == algo]
+                print(f"\n  {algo.upper()} Statistics (n={len(algo_df)}):")
+                print(f"    Max cwnd: {algo_df['cwnd'].max()}")
+                print(f"    Min cwnd: {algo_df['cwnd'].min()}")
+                print(f"    Avg cwnd: {algo_df['cwnd'].mean():.2f}")
+                
+    except Exception as e:
+        print(f"Error processing CWND log: {e}")
 
 
 def process_raw_data(raw_file, output_csv):
@@ -481,6 +606,10 @@ def main():
                         help='Total duration of the experiment in seconds')
     parser.add_argument('--interval', type=int, default=30,
                         help='Interval in seconds before switching algorithms (only for switch mode)')
+    parser.add_argument('--loss', type=float, default=1,
+                        help='Loss percentage for the bottleneck link')
+    parser.add_argument('--bw', type=int, default=10,
+                        help='Bandwidth in Mbps for the bottleneck link')
     args = parser.parse_args()
     
     # Set log level
@@ -497,8 +626,33 @@ def main():
     raw_log = f"{data_dir}/raw_{args.mode}_{timestamp}.log"
     output_csv = f"{data_dir}/{args.mode}_tcp_{timestamp}.csv"
     
-    # Create topology
-    topo = SimpleTopo()
+    # Create a custom topology
+    class CustomTopo(Topo):
+        def build(self):
+            # Create switches
+            s1 = self.addSwitch('s1')
+            s2 = self.addSwitch('s2')
+            
+            # Add hosts
+            h1 = self.addHost('h1')
+            h2 = self.addHost('h2')
+            
+            # Add host links with high bandwidth
+            self.addLink(h1, s1, bw=1000, delay='1ms')  # 1 Gbps access link
+            self.addLink(h2, s2, bw=1000, delay='1ms')  # 1 Gbps access link
+            
+            # Create bottleneck link with specified parameters
+            self.addLink(
+                s1, 
+                s2, 
+                bw=args.bw,          # Bottleneck bandwidth from args 
+                delay='20ms',        # Fixed delay
+                loss=args.loss,      # Loss percentage from args
+                max_queue_size=50    # Fixed queue size
+            )
+    
+    # Create topology instance
+    topo = CustomTopo()
     
     # Clean up previous Mininet instances
     print("Cleaning up previous Mininet instances...")
@@ -508,6 +662,7 @@ def main():
     net = None
     try:
         print("Creating Mininet network...")
+        print(f"Network parameters: {args.bw}Mbps bottleneck, {args.loss}% loss")
         net = Mininet(topo=topo, host=CPULimitedHost, link=TCLink)
         
         # Start network
@@ -519,19 +674,21 @@ def main():
         dumpNodeConnections(net.hosts)
         
         # Collect TCP data
-        raw_log = collect_tcp_data(
+        raw_log, cwnd_log = collect_tcp_data(
             net, 
             mode=args.mode, 
             total_duration=args.duration, 
             switch_interval=args.interval
         )
         
-        # Process the data
+        # Process the raw data
         success = process_raw_data(raw_log, output_csv)
         
         if success:
-            print(f"Data collection complete. Output saved to: {output_csv}")
-            return output_csv
+            print(f"Data collection complete.")
+            print(f"Raw data saved to: {raw_log}")
+            print(f"CWND data saved to: {cwnd_log.replace('.log', '.csv')}")
+            print(f"Full TCP data saved to: {output_csv}")
         else:
             print("Data processing failed.")
             return None
