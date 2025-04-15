@@ -16,12 +16,9 @@ from mininet.clean import cleanup
 
 import os
 import time
-import subprocess
 import pandas as pd
-import numpy as np
 import re
 import sys
-import threading
 import argparse
 from datetime import datetime
 
@@ -42,7 +39,7 @@ class SimpleTopo(Topo):
         self.addLink(h1, s1, bw=100, delay='1ms')
         self.addLink(h2, s2, bw=100, delay='1ms')
         
-        # Create bottleneck link with 10 Mbps bandwidth, 20ms delay, and 1% loss
+        # Create bottleneck link
         self.addLink(
             s1, 
             s2, 
@@ -250,7 +247,7 @@ def collect_tcp_data(net, mode="reno", total_duration=60, switch_interval=30):
         try:
             h1.cmd(f'kill {monitor_pid}')
         except:
-            print(f"Warning: Could not kill monitor process")
+            print("Warning: Could not kill monitor process")
     
     # Stop iperf
     h1.cmd('pkill -f iperf')
@@ -318,7 +315,7 @@ def process_cwnd_log(cwnd_log, mode, switch_point=None):
         print(f"Processed {len(df)} CWND data points and saved to {output_csv}")
         
         # Print statistics
-        print(f"\nCWND Statistics:")
+        print("\nCWND Statistics:")
         print(f"  Max cwnd: {df['cwnd'].max()}")
         print(f"  Min cwnd: {df['cwnd'].min()}")
         print(f"  Avg cwnd: {df['cwnd'].mean():.2f}")
@@ -741,7 +738,7 @@ def main():
         success = process_raw_data(raw_log, output_csv)
         
         if success:
-            print(f"Data collection complete.")
+            print("Data collection complete.")
             print(f"Raw data saved to: {raw_log}")
             print(f"CWND data saved to: {cwnd_log.replace('.log', '.csv')}")
             print(f"Full TCP data saved to: {output_csv}")
