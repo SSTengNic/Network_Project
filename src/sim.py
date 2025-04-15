@@ -347,7 +347,7 @@ class DumbbellTopo(Topo):
         )
 
 # --- Data Parsing Logic ---
-def parse_ss_output(ss_output, h1_ip, h2_ip, current_tcp_algo):
+def parse_ss_output(ss_output, h1_ip, h2_ip, current_tcp_algo, port):
     """
     Parses the output of 'ss -tinem -o' to extract relevant TCP metrics
     for connections between h1 and h2.
@@ -371,7 +371,6 @@ def parse_ss_output(ss_output, h1_ip, h2_ip, current_tcp_algo):
 
     # Fields required:
     # wscale;rto;rtt;mss;pmtu;rcvmss;advmss;cwnd;ssthresh;bytes_sent;bytes_retrans;bytes_acked;segs_out;segs_in;data_segs_out;lastrcv;delivered;rcv_space;rcv_ssthresh;
-    # Regex patterns (simplified from original, add more as needed)
     wscale_match_re = re.compile(r'\swscale:([0-9]+,[0-9]+)\s')
     rto_match_re = re.compile(r'\srto:([0-9]+)\s')
     rtt_match_re = re.compile(r'\srtt:([0-9]+.[0-9]+)/')
@@ -397,6 +396,7 @@ def parse_ss_output(ss_output, h1_ip, h2_ip, current_tcp_algo):
         line = lines[i].strip()
 
         # Check if this line contains the IPs we care about
+        # TODO: Also check that the h1 port is the port specified
         is_relevant_connection = (h1_ip in line and h2_ip in line)
 
         # print(f"Line {i}: {line} - Relevant: {is_relevant_connection}") # Debug: Show line and relevance
@@ -534,6 +534,11 @@ def main():
     data_history = deque(maxlen=args.history)
     print(f"Config: Interval={args.interval}s, History={args.history} samples, BW={args.bw}Mbps, Loss={args.loss}%, TCP={args.tcp_algo}")
 
+    # Define ports to use
+    port1 = 5001
+    port2 = 5002
+    ports = [port1, port2]
+
     # --- Mininet Setup ---
     setLogLevel('info')
     cleanup() # Clean previous runs
@@ -542,6 +547,8 @@ def main():
     net = Mininet(topo=topo, host=CPULimitedHost, link=TCLink, autoSetMacs=True)
     net_running = False
     h1, h2 = None, None # Initialize hosts
+    active_iperf_pid = None
+    active_port = None
 
     def stop_network(signum=None, frame=None):
         print("\nStopping network and cleaning up...")
@@ -583,18 +590,31 @@ def main():
         current_algo = h1.cmd("sysctl net.ipv4.tcp_congestion_control").strip().split('=')[-1].strip()
         print(f"Current TCP Algorithm on h1: {current_algo}")
         if current_algo != args.tcp_algo:
-             print(f"Warning: Failed to set TCP algorithm to {args.tcp_algo}, using {current_algo}")
+            print(f"Warning: Failed to set TCP algorithm to {args.tcp_algo}, using {current_algo}")
 
 
         # --- Start Persistent Traffic ---
-        print("Starting iperf server on h2...")
-        h2.cmd('iperf -s -p 5001 &')
+        print(f"Starting iperf servers on h2 (ports {port1}, {port2})...")
+        h2.cmd(f'iperf -s -p {port1} > /dev/null &')
+        h2.cmd(f'iperf -s -p {port2} > /dev/null &')
+        # print("Starting iperf server on h2...")
+        # h2.cmd('iperf -s -p 5001 &')
         time.sleep(1) # Wait for server to start
 
-        print("Starting iperf client on h1 (runs indefinitely)...")
+        active_port = port1
+        print("Starting iperf client on h1 -> {h2_ip}:{active_port} (algo: {current_algo})...")
         # Use -t 9999999 for long run, -i args.interval for reports (though we ignore output)
-        h1.cmd(f'iperf -c {h2_ip} -p 5001 -t 9999999 -i {args.interval} &')
+        h1.cmd(f'iperf -c {h2_ip} -p {active_port} -t 9999999 -i {args.interval} > /dev/null &')
         time.sleep(1) # Wait for client connection to establish
+        # Get the PID of the last background process
+        pid_output = h1.cmd('echo $!')
+        print("pid_output: ", pid_output)
+        try:
+            active_iperf_pid = int(pid_output.strip())
+            print(f"Initial iperf client PID: {active_iperf_pid} on port {active_port}")
+        except ValueError:
+            print(f"Error: Could not get PID for initial iperf client. Output: '{pid_output}'")
+            stop_network()
 
         # net.interact() # Debug: Keep the Mininet CLI open for manual control
 
@@ -608,9 +628,9 @@ def main():
             # print(ss_cmd_output) # Debug: Show raw ss output
 
             # Parse the output
-            parsed_data_list = parse_ss_output(ss_cmd_output, h1_ip, h2_ip, current_algo)
+            parsed_data_list = parse_ss_output(ss_cmd_output, h1_ip, h2_ip, current_algo, active_port)
 
-            print(parsed_data_list) # Debug: Show parsed data
+            # print(parsed_data_list) # Debug: Show parsed data
 
             if parsed_data_list:
                 # Add the first found connection's data to our history deque
@@ -635,10 +655,64 @@ def main():
                         row = [data_point.get(col) for col in MODEL_FEATURE_COLUMNS]
                         input_data_list.append(row)
                     input_data = np.array(input_data_list)
-                    print(input_data) # Debug: Show input data for model
+                    # print(input_data) # Debug: Show input data for model
 
-                    result = predict_best_algorithm(current_algo, input_data)
-                    print(f"Recommended algorithm: {result}")
+                    recommended_algo = predict_best_algorithm(current_algo, input_data)
+                    print(f"Recommended algorithm: {recommended_algo}")
+                    if recommended_algo != current_algo and recommended_algo in ['reno', 'cubic']:
+                        print(f"\nRecommendation changed: {current_algo} -> {recommended_algo}. Initiating switch.")
+
+                        # A. Change system default TCP algorithm
+                        print(f"[+] Setting system TCP to: {recommended_algo}")
+                        h1.cmd(f"sysctl -w net.ipv4.tcp_congestion_control={recommended_algo}")
+                        current_algo = h1.cmd("sysctl net.ipv4.tcp_congestion_control").strip().split('=')[-1].strip()
+                        if current_algo == recommended_algo:
+                            print(f"System TCP successfully set to {current_algo}")
+                        else:
+                            print(f"ERROR: Failed to set system TCP to {recommended_algo}, remains {verify_algo}. Aborting switch.")
+                            # Skip the rest of the switch logic for this cycle
+                            time.sleep(args.interval) # Still wait
+                            continue
+
+                        # Store info of the connection to be stopped
+                        old_iperf_pid = active_iperf_pid
+                        old_port = active_port
+
+                        # Determine the new port to use
+                        new_port = port2 if active_port == port1 else port1
+
+                        # B. Start new iperf client on the *other* port
+                        print(f"Starting NEW iperf client on h1 -> {h2_ip}:{new_port} (algo: {current_algo})...")
+                        h1.cmd(f'iperf -c {h2_ip} -p {new_port} -t 999999 -i {args.interval} > /dev/null &')
+                        time.sleep(1)
+                        new_pid_output = h1.cmd('echo $!')
+                        try:
+                            new_iperf_pid = int(new_pid_output.strip())
+                            print(f"New iperf client PID: {new_iperf_pid} on port {new_port}")
+
+                            # C. Update active state
+                            active_iperf_pid = new_iperf_pid
+                            active_port = new_port
+
+                            # D. Stop the OLD iperf client (after a brief moment for new one to connect)
+                            # time.sleep(1.0) # Allow new connection to establish fully
+                            print(f"Stopping OLD iperf client (PID: {old_iperf_pid}, Port: {old_port})...")
+                            # Check if process exists before killing
+                            if os.path.exists(f"/proc/{old_iperf_pid}"):
+                                h1.cmd(f'kill {old_iperf_pid}')
+                                print(f"Kill signal sent to PID {old_iperf_pid}.")
+                                # time.sleep(0.5) # Give kill time to process
+                            else:
+                                print(f"Old PID {old_iperf_pid} not found, likely already stopped.")
+
+                        except ValueError:
+                            print(f"ERROR: Could not get PID for NEW iperf client. Output: '{new_pid_output}'. Switch failed.")
+                            # Attempt to kill the potentially orphaned new iperf if PID wasn't captured
+                            h1.cmd(f'pkill -f "iperf -c {h2_ip} -p {new_port}"')
+                            # Revert sysctl? Maybe not, let it try again next cycle.
+                            print("Continuing with the old connection active.")
+
+                    # else: print(f"Recommendation ({recommended_algo}) matches current ({current_algo}). No switch needed.")
 
 
             else:
