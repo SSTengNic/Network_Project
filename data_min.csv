@@ -1,0 +1,12 @@
+rto,252.0
+rtt,48.589
+cwnd,2.0
+ssthresh,2.0
+bytes_acked,1.0
+segs_out,13.0
+segs_in,1.0
+data_segs_out,10.0
+lastrcv,252.0
+loss_ratio,6.782263189017881e-06
+tcp_type,0.0
+timestamp,0.0

@@ -1,0 +1,3 @@
+torch
+pandas
+numpy # numpy is likely already installed as a dependency, but good to include 
