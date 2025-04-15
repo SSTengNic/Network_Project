@@ -397,7 +397,9 @@ def parse_ss_output(ss_output, h1_ip, h2_ip, current_tcp_algo, port):
 
         # Check if this line contains the IPs we care about
         # TODO: Also check that the h1 port is the port specified
-        is_relevant_connection = (h1_ip in line and h2_ip in line)
+        is_relevant_connection = (h1_ip in line and f"{h2_ip}:{port}" in line)
+        if is_relevant_connection:
+            print(f"Relevant connection found: {line}") # Debug: Show relevant connection
 
         # print(f"Line {i}: {line} - Relevant: {is_relevant_connection}") # Debug: Show line and relevance
         # print(f"Timer string in line: {'timer:(' in lines[i]}") # Debug: Check for timer presence
