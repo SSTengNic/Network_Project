@@ -28,7 +28,7 @@ import os
 
 MODEL_FEATURE_COLUMNS = ['wscale', 'rto', 'rtt', 'mss', 'rcvmss', 'advmss', 'cwnd', 'ssthresh',
        'bytes_acked', 'segs_out', 'segs_in', 'data_segs_out', 'lastrcv',
-       'rcv_ssthresh', 'timestamp'] # tcp_type is also used for the switch model, but will be passed into predict_best_algorithm separately
+       'rcv_ssthresh', 'tcp_type', 'timestamp'] # tcp_type is also used for the switch model, but will be passed into predict_best_algorithm separately
 
 class LSTM_pt(torch.nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, output_size):
@@ -223,13 +223,13 @@ def predict_loss(model, input_data, config):
 
     return avg_prediction
 
-def predict_best_algorithm(current_algorithm, last_15_data_points, switching_threshold=0.01):
+def predict_best_algorithm(last_15_data_points, switching_threshold=0.01):
     """
     Predict which TCP congestion control algorithm will have a lower loss ratio.
 
     Args:
         current_algorithm (str): Current TCP congestion control algorithm ('reno' or 'cubic')
-        last_15_data_points (list/array): Last 15 data points with features for prediction
+        last_15_data_points (list/array of dictionaries): Last 15 data points with features for prediction
         switching_threshold (float): Minimum improvement required to switch algorithms
 
     Returns:
@@ -238,54 +238,62 @@ def predict_best_algorithm(current_algorithm, last_15_data_points, switching_thr
     # Ensure normalization parameters are loaded
     load_normalization_params()
 
+    # Get current algorithm
+    current_algorithm = last_15_data_points[-1]['tcp_type']
     # Map the algorithm to numeric value
     algo_map = {'reno': 1, 'cubic': 0}
-    current_algo_numeric = algo_map.get(current_algorithm.lower())
-
-    if current_algo_numeric is None:
+    if algo_map.get(current_algorithm.lower()) is None:
         raise ValueError("Algorithm must be either 'reno' or 'cubic'")
 
-    # Load the models
-    reno_model = load_model(RENO_CONFIG)
-    cubic_model = load_model(CUBIC_CONFIG)
-
     # Convert input data to the right format
-    # Last 15 data points is expected to be a numpy array or list of shape [15, features]
-    input_data = np.array(last_15_data_points)
+    # Last 15 data points is expected to be a deque or list of dictionaries
+    input_data_list = []
+    for data_point in last_15_data_points:
+        row = [data_point.get(col) if col != 'tcp_type' else algo_map.get(data_point[col].lower()) for col in MODEL_FEATURE_COLUMNS]
+        input_data_list.append(row)
+    input_data = np.array(input_data_list)
 
-    # Prepare input for Reno and Cubic models (both use 15 features)
+    # Prepare input
     feature_mins = np.min(input_data, axis=0)
     feature_maxs = np.max(input_data, axis=0)
     normalized_input = normalize_data(input_data, feature_mins, feature_maxs)
 
+    # Drop the tcp_type column for the non-switch models
+    tcp_type_col_index = MODEL_FEATURE_COLUMNS.index('tcp_type')
+    normalized_input_notype = np.concatenate((normalized_input[:, :tcp_type_col_index], normalized_input[:, tcp_type_col_index+1:]), axis=1)
+
     # Convert to tensor
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     normalized_input_tensor = torch.tensor(normalized_input, dtype=torch.float32).unsqueeze(0).to(device)
+    normalized_input_notype_tensor = torch.tensor(normalized_input_notype, dtype=torch.float32).unsqueeze(0).to(device)
 
-    # Make predictions
-    loss_reno = predict_loss(reno_model, normalized_input_tensor, RENO_CONFIG)
-    loss_cubic = predict_loss(cubic_model, normalized_input_tensor, CUBIC_CONFIG)
-
-    print(f"Predicted loss with Reno: {loss_reno:.6f}")
-    print(f"Predicted loss with Cubic: {loss_cubic:.6f}")
-
-    # If current algorithm is Reno
-    if current_algo_numeric == 1:  # Reno
-        # Only switch if Cubic provides significant improvement
-        if loss_cubic < (loss_reno - switching_threshold):
-            print(f"Improvement by switching: {loss_reno - loss_cubic:.6f}")
+    # Load the models, make predictions, and return recommendation
+    if current_algorithm == 'reno':
+        reno_model = load_model(RENO_CONFIG)
+        switch_model = load_model(RENO_CUBIC_CONFIG)
+        loss_reno = predict_loss(reno_model, normalized_input_notype_tensor, RENO_CONFIG)
+        loss_switch = predict_loss(switch_model, normalized_input_tensor, RENO_CUBIC_CONFIG)
+        print(f"Predicted loss with Reno: {loss_reno:.6f}")
+        print(f"Predicted loss with switch to Cubic: {loss_switch:.6f}")
+        if loss_switch < (loss_reno - switching_threshold):
+            print(f"Improvement by switching: {loss_reno - loss_switch:.6f}")
             return 'cubic'
         else:
-            print(f"Improvement not sufficient: {loss_reno - loss_cubic:.6f} < {switching_threshold}")
+            print(f"Improvement not sufficient: {loss_reno - loss_switch:.6f} < {switching_threshold}")
             return 'reno'
 
-    else:  # Cubic
-        # Only switch if Reno provides significant improvement
-        if loss_reno < (loss_cubic - switching_threshold):
-            print(f"Improvement by switching: {loss_cubic - loss_reno:.6f}")
+    elif current_algorithm == 'cubic':
+        cubic_model = load_model(CUBIC_CONFIG)
+        switch_model = load_model(RENO_CUBIC_CONFIG)
+        loss_cubic = predict_loss(cubic_model, normalized_input_notype_tensor, CUBIC_CONFIG)
+        loss_switch = predict_loss(switch_model, normalized_input_tensor, RENO_CUBIC_CONFIG)
+        print(f"Predicted loss with Cubic: {loss_cubic:.6f}")
+        print(f"Predicted loss with switch to Reno: {loss_switch:.6f}")
+        if loss_switch < (loss_cubic - switching_threshold):
+            print(f"Improvement by switching: {loss_cubic - loss_switch:.6f}")
             return 'reno'
         else:
-            print(f"Improvement not sufficient: {loss_cubic - loss_reno:.6f} < {switching_threshold}")
+            print(f"Improvement not sufficient: {loss_cubic - loss_switch:.6f} < {switching_threshold}")
             return 'cubic'
 
 # Example usage:
@@ -418,8 +426,6 @@ def parse_ss_output(ss_output, h1_ip, h2_ip, current_tcp_algo, port):
 
             # --- Extract Fields ---
             wscale_match = wscale_match_re.search(metrics_line)
-            # print(f"Wscale match: {wscale_match}") # Debug: Show wscale match
-            # print(f"Replacing commas with dots: {wscale_match.group(1).replace(',', '.')}") # Debug: Show replacement
             metrics['wscale'] = float(wscale_match.group(1).replace(',', '.')) if wscale_match else 0
 
             rto_match = rto_match_re.search(metrics_line)
@@ -650,16 +656,7 @@ def main():
                     print(f"History has {len(data_history)} entries. Oldest timestamp: {data_history[0]['timestamp']:.2f}")
                 # --------------------------------------------
                 if len(data_history) >= args.history:
-                    # Feed data into model and predict best algorithm
-                    # Convert deque to numpy array for model input
-                    input_data_list = []
-                    for data_point in data_history:
-                        row = [data_point.get(col) for col in MODEL_FEATURE_COLUMNS]
-                        input_data_list.append(row)
-                    input_data = np.array(input_data_list)
-                    # print(input_data) # Debug: Show input data for model
-
-                    recommended_algo = predict_best_algorithm(current_algo, input_data)
+                    recommended_algo = predict_best_algorithm(data_history)
                     print(f"Recommended algorithm: {recommended_algo}")
                     if recommended_algo != current_algo and recommended_algo in ['reno', 'cubic']:
                         print(f"\nRecommendation changed: {current_algo} -> {recommended_algo}. Initiating switch.")
