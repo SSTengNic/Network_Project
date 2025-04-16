@@ -507,6 +507,84 @@ def parse_ss_output(ss_output, h1_ip, h2_ip, current_tcp_algo, port):
 
     return connections_data
 
+def sim_algo(tcp_algo, filename, n_datapoints, args):
+    """
+    Simulates traffic and with the TCP Reno or Cubic algorithms and measures network data
+    for an amount of time and saves the data to a file.
+
+    Args:
+        tcp_algo (str): The name of the tcp congestion control algorithm to use.
+        filename (str): The name of the file to write the data to.
+        n_datapoints (int): Number of network data points to collect.
+        args (args object): Options specified from the cli.
+
+    Returns:
+        None
+    """
+    topo = DumbbellTopo(bw=args.bw, loss=args.loss, delay=args.delay, queue=args.qsize)
+    net = Mininet(topo=topo, host=CPULimitedHost, link=TCLink, autoSetMacs=True)
+    h1, h2 = None, None # Initialize hosts
+    net_running = False
+    data_history = deque(maxlen=n_datapoints)
+    try:
+        print("Starting Mininet network for Reno test...")
+        net.start()
+        net_running = True
+        print("Network started.")
+        h1, h2 = net.get('h1', 'h2')
+        h1_ip = h1.IP()
+        h2_ip = h2.IP()
+        print(f"h1 IP: {h1_ip}, h2 IP: {h2_ip}")
+
+        # --- Set TCP Algorithm ---
+        print(f"\n[+] Setting TCP Congestion Control on h1 to: {tcp_algo}")
+        h1.cmd(f"sysctl -w net.ipv4.tcp_congestion_control={tcp_algo}")
+        current_algo = h1.cmd("sysctl net.ipv4.tcp_congestion_control").strip().split('=')[-1].strip()
+        print(f"Current TCP Algorithm on h1: {current_algo}")
+        if current_algo != tcp_algo:
+            print(f"Warning: Failed to set TCP algorithm to {tcp_algo}, using {current_algo}")
+            raise ValueError
+        print("Starting iperf server on h2...")
+        h2.cmd('iperf -s -p 5001 &')
+        time.sleep(1) # Wait for server to start
+
+        print("Starting iperf client on h1 -> {h2_ip}:5001 (algo: {current_algo})...")
+        # Use -t 9999999 for long run, -i args.interval for reports (though we ignore output)
+        h1.cmd(f'iperf -c {h2_ip} -p 5001 -t 9999999 -i {args.interval} > /dev/null &')
+        time.sleep(1) # Wait for client connection to establish
+        while True:
+            ss_cmd_output = h1.cmd(f'ss -tinem -o state established dst {h2_ip}')
+            parsed_data_list = parse_ss_output(ss_cmd_output, h1_ip, h2_ip, current_algo, 5001)
+            if parsed_data_list:
+                data_history.append(parsed_data_list[0])
+                if len(data_history) > 0:
+                    print(f"History has {len(data_history)} entries. Oldest timestamp: {data_history[0]['timestamp']:.2f}")
+                if len(data_history) == n_datapoints:
+                    try:
+                        with open(filename, 'w') as file:
+                            for row in data_history:
+                                file.write(str(row) + '\n')
+                        print(f"Data from the deque written to '{filename}' successfully.")
+                    except IOError as e:
+                        print(f"Error writing to file: {e}")
+                    data_history.clear()
+                    break
+            time.sleep(args.interval)
+    except Exception as e:
+        print(f"\nAn error occurred: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        if h1: h1.cmd('pkill -f iperf') # Stop iperf client
+        if h2: h2.cmd('pkill -f iperf') # Stop iperf server
+        if net_running:
+            try:
+                net.stop()
+            except Exception as e:
+                print(f"Error stopping Mininet: {e}")
+        cleanup()
+        print("Exiting.")
+        time.sleep(10)
 
 # --- Main Execution ---
 def main():
@@ -528,6 +606,8 @@ def main():
                         help='Bottleneck max queue size (packets) (default: 50)')
     parser.add_argument('--tcp_algo', type=str, default='cubic',
                         help='TCP congestion control algorithm to set on h1 (default: cubic)')
+    parser.add_argument('--save_history', type=bool, default=False,
+                        help='TCP congestion control algorithm to set on h1 (default: cubic)')
     args = parser.parse_args()
 
     if args.interval <= 0:
@@ -536,6 +616,12 @@ def main():
     if args.history <= 0:
         print("Error: History size must be positive.")
         sys.exit(1)
+
+    if args.save_history:
+        n_datapoints = 100
+        sim_algo("reno", "./src/data/reno_log.txt", n_datapoints, args)
+        sim_algo("cubic", "./src/data/cubic_log.txt", n_datapoints, args)
+        data_history_full = deque(maxlen=n_datapoints)
 
     # Initialize the deque
     data_history = deque(maxlen=args.history)
@@ -646,6 +732,19 @@ def main():
 
                 if len(data_history) > 0:
                     print(f"History has {len(data_history)} entries. Oldest timestamp: {data_history[0]['timestamp']:.2f}")
+
+                if args.save_history:
+                    data_history_full.append(parsed_data_list[0])
+                    if len(data_history_full) == n_datapoints:
+                        filename = './src/data/prototype_log.txt'
+                        try:
+                            with open(filename, 'w') as file:
+                                for row in data_history_full:
+                                    file.write(str(row) + '\n')
+                            print(f"Data from the deque written to '{filename}' successfully.")
+                        except IOError as e:
+                            print(f"Error writing to file: {e}")
+                        break
 
                 if len(data_history) >= args.history:
                     recommended_algo = predict_best_algorithm(data_history)
