@@ -404,7 +404,6 @@ def parse_ss_output(ss_output, h1_ip, h2_ip, current_tcp_algo, port):
         line = lines[i].strip()
 
         # Check if this line contains the IPs we care about
-        # TODO: Also check that the h1 port is the port specified
         is_relevant_connection = (h1_ip in line and f"{h2_ip}:{port}" in line)
         if is_relevant_connection:
             print(f"Relevant connection found: {line}") # Debug: Show relevant connection
@@ -645,16 +644,9 @@ def main():
                 # You could modify this to store data for *all* found connections if needed
                 data_history.append(parsed_data_list[0])
 
-                # --- PLACEHOLDER: Use the collected data ---
-                # Example: Print the latest CWND
-                # latest_data = data_history[-1]
-                # print(f"Time: {latest_data['timestamp']:.2f}, CWND: {latest_data['cwnd']}, RTT: {latest_data['rtt']:.2f}ms, Algo: {latest_data['tcp_type']}")
-
-                # Example: Access the full history (list of dictionaries)
-                # full_history_list = list(data_history)
                 if len(data_history) > 0:
                     print(f"History has {len(data_history)} entries. Oldest timestamp: {data_history[0]['timestamp']:.2f}")
-                # --------------------------------------------
+
                 if len(data_history) >= args.history:
                     recommended_algo = predict_best_algorithm(data_history)
                     print(f"Recommended algorithm: {recommended_algo}")
@@ -680,7 +672,7 @@ def main():
                         # Determine the new port to use
                         new_port = port2 if active_port == port1 else port1
 
-                        # B. Start new iperf client on the *other* port
+                        # B. Start new iperf client on the other port
                         print(f"Starting NEW iperf client on h1 -> {h2_ip}:{new_port} (algo: {current_algo})...")
                         h1.cmd(f'iperf -c {h2_ip} -p {new_port} -t 999999 -i {args.interval} > /dev/null &')
                         time.sleep(1)
@@ -694,13 +686,11 @@ def main():
                             active_port = new_port
 
                             # D. Stop the OLD iperf client (after a brief moment for new one to connect)
-                            # time.sleep(1.0) # Allow new connection to establish fully
                             print(f"Stopping OLD iperf client (PID: {old_iperf_pid}, Port: {old_port})...")
                             # Check if process exists before killing
                             if os.path.exists(f"/proc/{old_iperf_pid}"):
                                 h1.cmd(f'kill {old_iperf_pid}')
                                 print(f"Kill signal sent to PID {old_iperf_pid}.")
-                                # time.sleep(0.5) # Give kill time to process
                             else:
                                 print(f"Old PID {old_iperf_pid} not found, likely already stopped.")
 
@@ -708,7 +698,6 @@ def main():
                             print(f"ERROR: Could not get PID for NEW iperf client. Output: '{new_pid_output}'. Switch failed.")
                             # Attempt to kill the potentially orphaned new iperf if PID wasn't captured
                             h1.cmd(f'pkill -f "iperf -c {h2_ip} -p {new_port}"')
-                            # Revert sysctl? Maybe not, let it try again next cycle.
                             print("Continuing with the old connection active.")
 
                     # else: print(f"Recommendation ({recommended_algo}) matches current ({current_algo}). No switch needed.")
