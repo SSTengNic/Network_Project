@@ -46,19 +46,19 @@ echo "Network: ${BOTTLENECK_BW}Mbps bottleneck with ${LOSS_RATE}% loss"
 echo "=========================================================="
 
 
-sudo python3 ./single_multi_protocol_experiment.py \
-  --mode="reno" \
-  --duration="$DURATION" \
-  --bw="$BOTTLENECK_BW" \
-  --loss="$LOSS_RATE"
+#sudo python3 ./single_multi_protocol_experiment.py \
+#  --mode="reno" \
+# --duration="$DURATION" \
+#  --bw="$BOTTLENECK_BW" \
+# --loss="$LOSS_RATE"
 
-# # Run just the switch experiment
-# sudo python3 ./single_multi_protocol_experiment.py \
-#   --mode="reno" \
-#   --duration="$DURATION" \
-#   --interval="$SWITCH_INTERVAL" \
-#   --bw="$BOTTLENECK_BW" \
-#   --loss="$LOSS_RATE"
+ # Run just the switch experiment
+ sudo python3 ./single_multi_protocol_experiment.py \
+   --mode="switch" \
+   --duration="$DURATION" \
+   --interval="$SWITCH_INTERVAL" \
+   --bw="$BOTTLENECK_BW" \
+   --loss="$LOSS_RATE"
 
 # Check if the experiment was successful
 if [ $? -eq 0 ]; then
