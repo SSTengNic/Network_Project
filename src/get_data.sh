@@ -47,7 +47,7 @@ echo "=========================================================="
 
 
 sudo python3 ./single_multi_protocol_experiment.py \
-  --mode="cubic" \
+  --mode="reno" \
   --duration="$DURATION" \
   --bw="$BOTTLENECK_BW" \
   --loss="$LOSS_RATE"
