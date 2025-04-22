@@ -405,8 +405,8 @@ def parse_ss_output(ss_output, h1_ip, h2_ip, current_tcp_algo, port):
 
         # Check if this line contains the IPs we care about
         is_relevant_connection = (h1_ip in line and f"{h2_ip}:{port}" in line)
-        if is_relevant_connection:
-            print(f"Relevant connection found: {line}") # Debug: Show relevant connection
+        # if is_relevant_connection:
+        #     print(f"Relevant connection found: {line}") # Debug: Show relevant connection
 
         # print(f"Line {i}: {line} - Relevant: {is_relevant_connection}") # Debug: Show line and relevance
         # print(f"Timer string in line: {'timer:(' in lines[i]}") # Debug: Check for timer presence
@@ -527,7 +527,7 @@ def sim_algo(tcp_algo, filename, n_datapoints, args):
     net_running = False
     data_history = deque(maxlen=n_datapoints)
     try:
-        print("Starting Mininet network for Reno test...")
+        print("Starting Mininet network for {tcp_algo} test...")
         net.start()
         net_running = True
         print("Network started.")
@@ -607,7 +607,9 @@ def main():
     parser.add_argument('--tcp_algo', type=str, default='cubic',
                         help='TCP congestion control algorithm to set on h1 (default: cubic)')
     parser.add_argument('--save_history', type=bool, default=False,
-                        help='TCP congestion control algorithm to set on h1 (default: cubic)')
+                        help='simulate Reno and Cubic and save data to src/data (default: False)')
+    parser.add_argument('--suffix', type=str, default='',
+                        help='Suffix to add to the saved data filename if --save_history is True. The file will be saved as ./src/data/{algo}_log_{suffix}.txt. (default: empty)')
     args = parser.parse_args()
 
     if args.interval <= 0:
@@ -619,8 +621,8 @@ def main():
 
     if args.save_history:
         n_datapoints = 100
-        sim_algo("reno", "./src/data/reno_log.txt", n_datapoints, args)
-        sim_algo("cubic", "./src/data/cubic_log.txt", n_datapoints, args)
+        sim_algo("reno", f"./src/data/reno_log_{args.suffix}.txt", n_datapoints, args)
+        sim_algo("cubic", f"./src/data/cubic_log_{args.suffix}.txt", n_datapoints, args)
         data_history_full = deque(maxlen=n_datapoints)
 
     # Initialize the deque
@@ -736,7 +738,7 @@ def main():
                 if args.save_history:
                     data_history_full.append(parsed_data_list[0])
                     if len(data_history_full) == n_datapoints:
-                        filename = './src/data/prototype_log.txt'
+                        filename = f'./src/data/prototype_log_{args.suffix}.txt'
                         try:
                             with open(filename, 'w') as file:
                                 for row in data_history_full:
