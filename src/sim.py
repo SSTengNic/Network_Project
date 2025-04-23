@@ -26,6 +26,30 @@ import numpy as np
 import pandas as pd
 import os
 
+RUNS = [
+    {
+        "RUN_NUMBER": 1,
+        "BW": 100,
+        "DELAY": "1ms",
+        "LOSS": 1,
+    },
+    {
+        "RUN_NUMBER": 2,
+        "BW": 1000,
+        "DELAY": "1ms",
+        "LOSS": 1,
+    },
+        {
+        "RUN_NUMBER": 3,
+        "BW": 100,
+        "DELAY": "1ms",
+        "LOSS": 5,
+    }
+]
+
+CURRENT_RUN_INDEX = 1
+CURRENT_RUN = RUNS[CURRENT_RUN_INDEX]
+
 MODEL_FEATURE_COLUMNS = ['wscale', 'rto', 'rtt', 'mss', 'rcvmss', 'advmss', 'cwnd', 'ssthresh',
        'bytes_acked', 'segs_out', 'segs_in', 'data_segs_out', 'lastrcv',
        'rcv_ssthresh', 'tcp_type', 'timestamp'] # tcp_type is also used for the switch model, but will be passed into predict_best_algorithm separately
@@ -189,7 +213,7 @@ def load_model(config):
 
 def normalize_data(data, feature_mins, feature_maxs):
     """Normalize input data based on min and max values."""
-    normalized = (data - feature_mins) / (feature_maxs - feature_mins)
+    normalized = (data - feature_mins) / (feature_maxs - feature_mins + 1e-10)
     # Replace NaN with 0 (if division by zero occurred)
     normalized = np.nan_to_num(normalized, nan=0.0)
     return normalized
@@ -256,6 +280,8 @@ def predict_best_algorithm(last_15_data_points, switching_threshold=0.01):
     # Prepare input
     feature_mins = np.min(input_data, axis=0)
     feature_maxs = np.max(input_data, axis=0)
+    print(f"Feature mins: {feature_mins}")
+    print(f"Feature maxs: {feature_maxs}")
     normalized_input = normalize_data(input_data, feature_mins, feature_maxs)
 
     # Drop the tcp_type column for the non-switch models
@@ -331,7 +357,7 @@ data_history = None
 # --- Topology Definition ---
 class DumbbellTopo(Topo):
     """Simple dumbbell topology with 2 hosts and configurable bottleneck."""
-    def build(self, bw=10, loss=1, delay='20ms', queue=50):
+    def build(self, bw=CURRENT_RUN.get('BW'), loss=CURRENT_RUN.get('LOSS'), delay=CURRENT_RUN.get('DELAY'), queue=50):
         # Create switches
         s1 = self.addSwitch('s1')
         s2 = self.addSwitch('s2')
@@ -606,7 +632,7 @@ def main():
                         help='Bottleneck max queue size (packets) (default: 50)')
     parser.add_argument('--tcp_algo', type=str, default='cubic',
                         help='TCP congestion control algorithm to set on h1 (default: cubic)')
-    parser.add_argument('--save_history', type=bool, default=False,
+    parser.add_argument('--save_history', type=bool, default=True,
                         help='TCP congestion control algorithm to set on h1 (default: cubic)')
     args = parser.parse_args()
 
@@ -619,8 +645,8 @@ def main():
 
     if args.save_history:
         n_datapoints = 100
-        sim_algo("reno", "./src/data/reno_log.txt", n_datapoints, args)
-        sim_algo("cubic", "./src/data/cubic_log.txt", n_datapoints, args)
+        sim_algo("reno", f"./src/data/reno_log_{CURRENT_RUN.get('RUN_NUMBER')}.txt", n_datapoints, args)
+        sim_algo("cubic", f"./src/data/cubic_log_{CURRENT_RUN.get('RUN_NUMBER')}.txt", n_datapoints, args)
         data_history_full = deque(maxlen=n_datapoints)
 
     # Initialize the deque
@@ -736,7 +762,7 @@ def main():
                 if args.save_history:
                     data_history_full.append(parsed_data_list[0])
                     if len(data_history_full) == n_datapoints:
-                        filename = './src/data/prototype_log.txt'
+                        filename = f'./src/data/prototype_log_{CURRENT_RUN.get("RUN_NUMBER")}.txt'
                         try:
                             with open(filename, 'w') as file:
                                 for row in data_history_full:
