@@ -27,27 +27,51 @@ import pandas as pd
 import os
 
 RUNS = [
+    # Control: Moderate BW, low delay, light loss — stable baseline
     {
         "RUN_NUMBER": 1,
         "BW": 100,
         "DELAY": "1ms",
         "LOSS": 1,
+        "QSIZE": 30  # ~3x BDP
     },
+    # Case 2: High Bandwidth, High Delay — test scaling behavior
     {
         "RUN_NUMBER": 2,
-        "BW": 1000,
-        "DELAY": "1ms",
-        "LOSS": 1,
-    },
-        {
-        "RUN_NUMBER": 3,
         "BW": 100,
+        "DELAY": "100ms",
+        "LOSS": 0,
+        "QSIZE": 1000  # Needed to avoid drops (BDP ≈ 833 packets)
+    },
+    # Case 3: Low Bandwidth, Low Delay — low-pressure LAN scenario
+    {
+        "RUN_NUMBER": 3,
+        "BW": 10,
         "DELAY": "1ms",
-        "LOSS": 5,
-    }
+        "LOSS": 0,
+        "QSIZE": 10  # 3x BDP (BDP ≈ 3 packets)
+    },
+    # Case 4: Moderate BW + Small Queue — buffer pressure test
+    {
+        "RUN_NUMBER": 4,
+        "BW": 20,
+        "DELAY": "10ms",
+        "LOSS": 0,
+        "QSIZE": 50  # Intentionally small
+    },
+    # Case 5: Loss environment — test loss reaction dynamics
+    {
+        "RUN_NUMBER": 5,
+        "BW": 50,
+        "DELAY": "20ms",
+        "LOSS": 1,
+        "QSIZE": 300  # Reasonable capacity (BDP ≈ 83 packets)
+    },
 ]
 
-CURRENT_RUN_INDEX = 1
+
+
+CURRENT_RUN_INDEX = 4
 CURRENT_RUN = RUNS[CURRENT_RUN_INDEX]
 
 MODEL_FEATURE_COLUMNS = ['wscale', 'rto', 'rtt', 'mss', 'rcvmss', 'advmss', 'cwnd', 'ssthresh',
@@ -357,7 +381,7 @@ data_history = None
 # --- Topology Definition ---
 class DumbbellTopo(Topo):
     """Simple dumbbell topology with 2 hosts and configurable bottleneck."""
-    def build(self, bw=CURRENT_RUN.get('BW'), loss=CURRENT_RUN.get('LOSS'), delay=CURRENT_RUN.get('DELAY'), queue=50):
+    def build(self, bw=CURRENT_RUN.get('BW'), loss=CURRENT_RUN.get('LOSS'), delay=CURRENT_RUN.get('DELAY'), queue=CURRENT_RUN.get('QSIZE')):
         # Create switches
         s1 = self.addSwitch('s1')
         s2 = self.addSwitch('s2')
@@ -547,7 +571,7 @@ def sim_algo(tcp_algo, filename, n_datapoints, args):
     Returns:
         None
     """
-    topo = DumbbellTopo(bw=args.bw, loss=args.loss, delay=args.delay, queue=args.qsize)
+    topo = DumbbellTopo()
     net = Mininet(topo=topo, host=CPULimitedHost, link=TCLink, autoSetMacs=True)
     h1, h2 = None, None # Initialize hosts
     net_running = False
@@ -644,14 +668,16 @@ def main():
         sys.exit(1)
 
     if args.save_history:
-        n_datapoints = 100
+        print(f"Saving history for run {CURRENT_RUN.get('RUN_NUMBER')}")
+        print(f"Current run: {CURRENT_RUN}")
+        n_datapoints = 5
         sim_algo("reno", f"./src/data/reno_log_{CURRENT_RUN.get('RUN_NUMBER')}.txt", n_datapoints, args)
         sim_algo("cubic", f"./src/data/cubic_log_{CURRENT_RUN.get('RUN_NUMBER')}.txt", n_datapoints, args)
         data_history_full = deque(maxlen=n_datapoints)
 
     # Initialize the deque
     data_history = deque(maxlen=args.history)
-    print(f"Config: Interval={args.interval}s, History={args.history} samples, BW={args.bw}Mbps, Loss={args.loss}%, TCP={args.tcp_algo}")
+    # print(f"Config: Interval={args.interval}s, History={args.history} samples, BW={args.bw}Mbps, Loss={args.loss}%, TCP={args.tcp_algo}")
 
     # Define ports to use
     port1 = 5001
@@ -662,7 +688,7 @@ def main():
     setLogLevel('info')
     cleanup() # Clean previous runs
 
-    topo = DumbbellTopo(bw=args.bw, loss=args.loss, delay=args.delay, queue=args.qsize)
+    topo = DumbbellTopo()
     net = Mininet(topo=topo, host=CPULimitedHost, link=TCLink, autoSetMacs=True)
     net_running = False
     h1, h2 = None, None # Initialize hosts
