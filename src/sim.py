@@ -71,7 +71,7 @@ RUNS = [
 
 
 
-CURRENT_RUN_INDEX = 4
+CURRENT_RUN_INDEX = 3
 CURRENT_RUN = RUNS[CURRENT_RUN_INDEX]
 
 MODEL_FEATURE_COLUMNS = ['wscale', 'rto', 'rtt', 'mss', 'rcvmss', 'advmss', 'cwnd', 'ssthresh',
@@ -670,7 +670,7 @@ def main():
     if args.save_history:
         print(f"Saving history for run {CURRENT_RUN.get('RUN_NUMBER')}")
         print(f"Current run: {CURRENT_RUN}")
-        n_datapoints = 5
+        n_datapoints = 50
         sim_algo("reno", f"./src/data/reno_log_{CURRENT_RUN.get('RUN_NUMBER')}.txt", n_datapoints, args)
         sim_algo("cubic", f"./src/data/cubic_log_{CURRENT_RUN.get('RUN_NUMBER')}.txt", n_datapoints, args)
         data_history_full = deque(maxlen=n_datapoints)
