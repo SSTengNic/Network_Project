@@ -69,8 +69,10 @@ RUNS = [
     },
 ]
 
-# CURRENT_RUN_INDEX = 4 # Removed
-# CURRENT_RUN = RUNS[CURRENT_RUN_INDEX] # Removed
+
+
+CURRENT_RUN_INDEX = 4
+CURRENT_RUN = RUNS[CURRENT_RUN_INDEX]
 
 MODEL_FEATURE_COLUMNS = ['wscale', 'rto', 'rtt', 'mss', 'rcvmss', 'advmss', 'cwnd', 'ssthresh',
        'bytes_acked', 'segs_out', 'segs_in', 'data_segs_out', 'lastrcv',
@@ -374,24 +376,12 @@ def predict_best_algorithm(last_15_data_points, switching_threshold=0.01):
 # --- Data Storage ---
 # A deque automatically maintains a fixed size, discarding oldest entries
 # This will be populated by the main loop.
-# data_history = None # Removed, initialized locally in main
+data_history = None
 
 # --- Topology Definition ---
 class DumbbellTopo(Topo):
     """Simple dumbbell topology with 2 hosts and configurable bottleneck."""
-    # def build(self, bw=CURRENT_RUN.get('BW'), loss=CURRENT_RUN.get('LOSS'), delay=CURRENT_RUN.get('DELAY'), queue=CURRENT_RUN.get('QSIZE')): # Replaced build with __init__
-    def __init__(self, bw, delay, loss, queue, **opts):
-        """
-        Initialize the dumbbell topology.
-        Args:
-            bw (int): Bottleneck bandwidth in Mbps.
-            delay (str): Bottleneck link delay (e.g., '10ms').
-            loss (float): Bottleneck link loss percentage.
-            queue (int): Bottleneck link max queue size (packets).
-            **opts: Other Topo options.
-        """
-        super(DumbbellTopo, self).__init__(**opts)
-
+    def build(self, bw=CURRENT_RUN.get('BW'), loss=CURRENT_RUN.get('LOSS'), delay=CURRENT_RUN.get('DELAY'), queue=CURRENT_RUN.get('QSIZE')):
         # Create switches
         s1 = self.addSwitch('s1')
         s2 = self.addSwitch('s2')
@@ -567,31 +557,21 @@ def parse_ss_output(ss_output, h1_ip, h2_ip, current_tcp_algo, port):
 
     return connections_data
 
-# def sim_algo(tcp_algo, filename, n_datapoints, args): # Signature changed
-def sim_algo(tcp_algo, run_number, bw, delay, loss, queue, n_datapoints, args):
+def sim_algo(tcp_algo, filename, n_datapoints, args):
     """
     Simulates traffic and with the TCP Reno or Cubic algorithms and measures network data
-    for an amount of time and saves the data to a file for a specific run configuration.
+    for an amount of time and saves the data to a file.
 
     Args:
         tcp_algo (str): The name of the tcp congestion control algorithm to use.
-        run_number (int): The identifier for this simulation run.
-        bw (int): Bottleneck bandwidth for this run.
-        delay (str): Bottleneck delay for this run.
-        loss (float): Bottleneck loss for this run.
-        queue (int): Bottleneck queue size for this run.
+        filename (str): The name of the file to write the data to.
         n_datapoints (int): Number of network data points to collect.
-        args (args object): Options specified from the cli (used for interval).
+        args (args object): Options specified from the cli.
 
     Returns:
         None
     """
-    filename = f"./src/data/{tcp_algo}_log_{run_number}.txt" # Construct filename using run_number
-    print(f"--- Starting {tcp_algo.capitalize()} log generation for Run {run_number} (saving to {filename}) ---")
-    print(f"    Params: BW={bw}, Delay={delay}, Loss={loss}, Queue={queue}")
-
-    # topo = DumbbellTopo() # Pass parameters now
-    topo = DumbbellTopo(bw=bw, delay=delay, loss=loss, queue=queue)
+    topo = DumbbellTopo()
     net = Mininet(topo=topo, host=CPULimitedHost, link=TCLink, autoSetMacs=True)
     h1, h2 = None, None # Initialize hosts
     net_running = False
@@ -637,7 +617,7 @@ def sim_algo(tcp_algo, run_number, bw, delay, loss, queue, n_datapoints, args):
                         print(f"Data from the deque written to '{filename}' successfully.")
                     except IOError as e:
                         print(f"Error writing to file: {e}")
-                    # data_history.clear() # Don't clear, just break
+                    data_history.clear()
                     break
             time.sleep(args.interval)
     except Exception as e:
@@ -658,7 +638,7 @@ def sim_algo(tcp_algo, run_number, bw, delay, loss, queue, n_datapoints, args):
 
 # --- Main Execution ---
 def main():
-    # global data_history # No longer needed globally
+    global data_history # Allow modification of the global deque
 
     # --- Argument Parsing ---
     parser = argparse.ArgumentParser(description='Mininet TCP Data Collector (In-Memory)')
@@ -678,8 +658,6 @@ def main():
                         help='TCP congestion control algorithm to set on h1 (default: cubic)')
     parser.add_argument('--save_history', type=bool, default=True,
                         help='TCP congestion control algorithm to set on h1 (default: cubic)')
-    parser.add_argument('--run_number', type=int, default=None,
-                        help='Specify a run number from the predefined RUNS list. Overrides --bw, --delay, etc.') # New argument
     args = parser.parse_args()
 
     if args.interval <= 0:
@@ -689,47 +667,17 @@ def main():
         print("Error: History size must be positive.")
         sys.exit(1)
 
-    # Determine run parameters
-    run_params = {}
-    current_run_number = args.run_number
-    if args.run_number is not None:
-        if 1 <= args.run_number <= len(RUNS):
-            run_config = RUNS[args.run_number - 1] # 0-indexed list
-            run_params['bw'] = run_config['BW']
-            run_params['delay'] = run_config['DELAY']
-            run_params['loss'] = run_config['LOSS']
-            run_params['queue'] = run_config['QSIZE']
-            print(f"Using parameters from RUN {args.run_number}: {run_params}")
-        else:
-            print(f"Error: Invalid run_number {args.run_number}. Must be between 1 and {len(RUNS)}.")
-            sys.exit(1)
-    else:
-        # Use command-line args or defaults if run_number is not specified
-        run_params['bw'] = args.bw
-        run_params['delay'] = args.delay
-        run_params['loss'] = args.loss
-        run_params['queue'] = args.qsize
-        current_run_number = 0 # Indicate custom run
-        print(f"Using parameters from command line/defaults: {run_params}")
-
-    # --- Log Generation (Optional) ---
-    data_history_full = None # Initialize
     if args.save_history:
-        if current_run_number == 0:
-             print("Warning: --save_history is enabled but no specific --run_number provided.")
-             print("         Log filenames will use run number 0.")
-        else:
-             print(f"Generating logs for Run {current_run_number}...")
+        print(f"Saving history for run {CURRENT_RUN.get('RUN_NUMBER')}")
+        print(f"Current run: {CURRENT_RUN}")
+        n_datapoints = 5
+        sim_algo("reno", f"./src/data/reno_log_{CURRENT_RUN.get('RUN_NUMBER')}.txt", n_datapoints, args)
+        sim_algo("cubic", f"./src/data/cubic_log_{CURRENT_RUN.get('RUN_NUMBER')}.txt", n_datapoints, args)
+        data_history_full = deque(maxlen=n_datapoints)
 
-        n_datapoints = 5 # Number of points for the initial log files
-        # Call sim_algo with specific run parameters
-        sim_algo("reno", current_run_number, run_params['bw'], run_params['delay'], run_params['loss'], run_params['queue'], n_datapoints, args)
-        sim_algo("cubic", current_run_number, run_params['bw'], run_params['delay'], run_params['loss'], run_params['queue'], n_datapoints, args)
-        # data_history_full = deque(maxlen=n_datapoints) # Moved inside main loop if needed
-
-    # Initialize the deque for the main simulation loop
+    # Initialize the deque
     data_history = deque(maxlen=args.history)
-    # print(f"Config: Interval={args.interval}s, History={args.history} samples, BW={run_params['bw']}Mbps, Loss={run_params['loss']}%, TCP={args.tcp_algo}")
+    # print(f"Config: Interval={args.interval}s, History={args.history} samples, BW={args.bw}Mbps, Loss={args.loss}%, TCP={args.tcp_algo}")
 
     # Define ports to use
     port1 = 5001
@@ -740,8 +688,7 @@ def main():
     setLogLevel('info')
     cleanup() # Clean previous runs
 
-    # topo = DumbbellTopo() # Pass parameters now
-    topo = DumbbellTopo(**run_params) # Use collected parameters
+    topo = DumbbellTopo()
     net = Mininet(topo=topo, host=CPULimitedHost, link=TCLink, autoSetMacs=True)
     net_running = False
     h1, h2 = None, None # Initialize hosts
@@ -839,9 +786,9 @@ def main():
                     print(f"History has {len(data_history)} entries. Oldest timestamp: {data_history[0]['timestamp']:.2f}")
 
                 if args.save_history:
-                    data_history_full = data_history.copy()
+                    data_history_full.append(parsed_data_list[0])
                     if len(data_history_full) == n_datapoints:
-                        filename = f'./src/data/prototype_log_{current_run_number}.txt'
+                        filename = f'./src/data/prototype_log_{CURRENT_RUN.get("RUN_NUMBER")}.txt'
                         try:
                             with open(filename, 'w') as file:
                                 for row in data_history_full:
@@ -852,15 +799,8 @@ def main():
                         break
 
                 if len(data_history) >= args.history:
-                    try:
-                        recommended_algo = predict_best_algorithm(data_history)
-                        print(f"Recommended algorithm: {recommended_algo}")
-                    except Exception as pred_e:
-                        print(f"Error during prediction: {pred_e}")
-                        recommended_algo = current_algo # Fallback to current if prediction fails
-                        # import traceback
-                        # traceback.print_exc()
-
+                    recommended_algo = predict_best_algorithm(data_history)
+                    print(f"Recommended algorithm: {recommended_algo}")
                     if recommended_algo != current_algo and recommended_algo in ['reno', 'cubic']:
                         print(f"\nRecommendation changed: {current_algo} -> {recommended_algo}. Initiating switch.")
 
@@ -905,12 +845,11 @@ def main():
                             else:
                                 print(f"Old PID {old_iperf_pid} not found, likely already stopped.")
 
-                            # Clear history after successful switch to avoid stale data influencing next prediction immediately
-                            print("Clearing data history after successful switch.")
-                            data_history.clear()
-
                         except ValueError:
                             print(f"ERROR: Could not get PID for NEW iperf client. Output: '{new_pid_output}'. Switch failed.")
+                            # Attempt to kill the potentially orphaned new iperf if PID wasn't captured
+                            h1.cmd(f'pkill -f "iperf -c {h2_ip} -p {new_port}"')
+                            print("Continuing with the old connection active.")
 
                     # else: print(f"Recommendation ({recommended_algo}) matches current ({current_algo}). No switch needed.")
 
