@@ -2,7 +2,7 @@
 
 """
 Mininet script to continuously monitor TCP connection metrics
-while oscillating between network conditions that favor different 
+while oscillating between network conditions that favor different
 TCP congestion control algorithms.
 """
 
@@ -55,7 +55,7 @@ data_history = None
 # --- Topology Definition ---
 class DumbbellTopo(Topo):
     """Simple dumbbell topology with 2 hosts and configurable bottleneck."""
-    def build(self, bw=CUBIC_FAVORABLE.get('BW'), loss=CUBIC_FAVORABLE.get('LOSS'), 
+    def build(self, bw=CUBIC_FAVORABLE.get('BW'), loss=CUBIC_FAVORABLE.get('LOSS'),
               delay=CUBIC_FAVORABLE.get('DELAY'), queue=CUBIC_FAVORABLE.get('QSIZE')):
         # create switches
         s1 = self.addSwitch('s1')
@@ -204,7 +204,7 @@ def parse_ss_output(ss_output, h1_ip, h2_ip, current_tcp_algo, port):
 def update_network_conditions(net, condition_type="cubic"):
     """
     Update the network conditions to favor either Cubic or Reno.
-    
+
     Args:
         net: The mininet network instance
         condition_type: Which conditions to apply - "cubic" or "reno"
@@ -213,13 +213,13 @@ def update_network_conditions(net, condition_type="cubic"):
         settings = CUBIC_FAVORABLE
     else:
         settings = RENO_FAVORABLE
-    
+
     print(f"\n[+] Updating network to {condition_type.upper()}-favorable conditions:")
     print(f"    Bandwidth: {settings['BW']} Mbps")
     print(f"    Delay: {settings['DELAY']}")
     print(f"    Loss: {settings['LOSS']}%")
     print(f"    Queue Size: {settings['QSIZE']} packets")
-    
+
     # Get the link between s1 and s2 (the bottleneck link)
     s1, s2 = net.get('s1', 's2')
     link = None
@@ -227,17 +227,20 @@ def update_network_conditions(net, condition_type="cubic"):
         if (l.intf1.node == s1 and l.intf2.node == s2) or (l.intf1.node == s2 and l.intf2.node == s1):
             link = l
             break
-    
+
     if link:
         print("updating link parameters")
         # Update link parameters using tc
         for intf in [link.intf1, link.intf2]:
+            print(f"Changing {intf.name}")
             # Clear existing TC rules
             intf.node.cmd(f'tc qdisc del dev {intf.name} root')
             # Apply new TC rules
             intf.node.cmd(f'tc qdisc add dev {intf.name} root handle 1: htb default 10')
             intf.node.cmd(f'tc class add dev {intf.name} parent 1: classid 1:10 htb rate {settings["BW"]}Mbit')
             intf.node.cmd(f'tc qdisc add dev {intf.name} parent 1:10 handle 10: netem delay {settings["DELAY"]} loss {settings["LOSS"]}% limit {settings["QSIZE"]}')
+            print(intf.node.cmd(f"tc -s qdisc show dev {intf.name}"))
+            print(intf.node.cmd(f"tc class show dev {intf.name}"))
     else:
         print("Error: Could not find bottleneck link between s1 and s2")
 
@@ -271,13 +274,13 @@ def main():
 
     # Initialize the deque
     data_history = deque(maxlen=args.history)
-    
+
     # Check if logs should be saved
     log_file = None
     if args.log_file:
         try:
             log_file = open(args.log_file, 'w')
-            log_file.write("timestamp,network_type,tcp_algorithm,rtt,cwnd,bytes_acked,segs_out,loss_ratio\n")
+            log_file.write("wscale;rto;rtt;mss;pmtu;rcvmss;advmss;cwnd;ssthresh;bytes_sent;bytes_retrans;bytes_acked;segs_out;segs_in;data_segs_out;lastrcv;delivered;rcv_space;rcv_ssthresh;loss_ratio;tcp_type;timestamp\n")
         except IOError as e:
             print(f"Error opening log file: {e}")
             log_file = None
@@ -337,7 +340,7 @@ def main():
         current_algo = "cubic"
         if args.fixed_algo and args.fixed_algo.lower() in ["reno", "cubic"]:
             current_algo = args.fixed_algo.lower()
-        
+
         print(f"\n[+] Setting TCP Congestion Control on h1 to: {current_algo}")
         h1.cmd(f"sysctl -w net.ipv4.tcp_congestion_control={current_algo}")
         verified_algo = h1.cmd("sysctl net.ipv4.tcp_congestion_control").strip().split('=')[-1].strip()
@@ -357,7 +360,7 @@ def main():
         print(f"Starting iperf client on h1 -> {h2_ip}:{active_port} (algo: {current_algo})...")
         h1.cmd(f'iperf -c {h2_ip} -p {active_port} -t 9999999 -i {args.interval} > /dev/null &')
         time.sleep(1) # Wait for client connection to establish
-        
+
         # Get the PID of the iperf client
         pid_output = h1.cmd('echo $!')
         try:
@@ -370,13 +373,13 @@ def main():
         # Variables for oscillation timing
         last_oscillation_time = time.time()
         oscillation_count = 0
-        
+
         # --- Main Data Collection Loop ---
         print(f"\nStarting data collection with oscillating network conditions...")
         print(f"Network will switch every {args.oscillation} seconds.")
         print(f"Data collected every {args.interval} seconds, keeping last {args.history} points.")
         print("Press Ctrl+C to stop.")
-        
+
         while True:
             # Check if it's time to oscillate the network
             current_time = time.time()
@@ -387,22 +390,22 @@ def main():
                     current_network = "reno"
                 else:
                     current_network = "cubic"
-                    
+
                 print(f"\n[+] Oscillation #{oscillation_count}: Switching to {current_network.upper()}-favorable network")
                 update_network_conditions(net, current_network)
                 last_oscillation_time = current_time
 
             # Get current TCP stats from h1 for the connection to h2
             ss_cmd_output = h1.cmd(f'ss -tinem -o state established dst {h2_ip}')
-            
+
             # Parse the output
             parsed_data_list = parse_ss_output(ss_cmd_output, h1_ip, h2_ip, current_algo, active_port)
-            
+
             if parsed_data_list:
                 # Add the first found connection's data to our history deque
                 connection_data = parsed_data_list[0]
                 data_history.append(connection_data)
-                
+
                 # Log data if requested
                 if log_file:
                     # Calculate loss ratio (bytes_retrans / bytes_sent)
@@ -410,11 +413,8 @@ def main():
                         loss_ratio = connection_data.get('bytes_retrans', 0) / connection_data.get('bytes_sent', 1)
                     else:
                         loss_ratio = 0
-                        
-                    log_file.write(f"{connection_data['timestamp']},{current_network},{current_algo},"
-                                   f"{connection_data.get('rtt', 0)},{connection_data.get('cwnd', 0)},"
-                                   f"{connection_data.get('bytes_acked', 0)},{connection_data.get('segs_out', 0)},"
-                                   f"{loss_ratio}\n")
+
+                    log_file.write(f"{connection_data['wscale']};{connection_data['rto']};{connection_data['rtt']};{connection_data['mss']};{connection_data['pmtu']};{connection_data['rcvmss']};{connection_data['advmss']};{connection_data['cwnd']};{connection_data['ssthresh']};{connection_data['bytes_sent']};{connection_data['bytes_retrans']};{connection_data['bytes_acked']};{connection_data['segs_out']};{connection_data['segs_in']};{connection_data['data_segs_out']};{connection_data['lastrcv']};{connection_data['delivered']};{connection_data['rcv_space']};{connection_data['rcv_ssthresh']};{loss_ratio};{current_algo};{connection_data['timestamp']}\n")
                     log_file.flush()  # Ensure data is written even if program crashes
 
                 if len(data_history) > 0:
@@ -425,7 +425,7 @@ def main():
                 if len(data_history) >= args.history and not args.fixed_algo:
                     recommended_algo = predict_best_algorithm(data_history)
                     print(f"Recommended algorithm: {recommended_algo}")
-                    
+
                     if recommended_algo != current_algo and recommended_algo in ['reno', 'cubic']:
                         print(f"\nRecommendation changed: {current_algo} -> {recommended_algo}. Initiating switch.")
 
@@ -433,7 +433,7 @@ def main():
                         print(f"[+] Setting system TCP to: {recommended_algo}")
                         h1.cmd(f"sysctl -w net.ipv4.tcp_congestion_control={recommended_algo}")
                         verified_algo = h1.cmd("sysctl net.ipv4.tcp_congestion_control").strip().split('=')[-1].strip()
-                        
+
                         if verified_algo == recommended_algo:
                             print(f"System TCP successfully set to {verified_algo}")
                             current_algo = verified_algo
@@ -494,4 +494,4 @@ def main():
         stop_network()
 
 if __name__ == '__main__':
-    main() 
+    main()
