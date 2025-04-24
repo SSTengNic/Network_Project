@@ -69,7 +69,21 @@ RUNS = [
     },
 ]
 
+# Network conditions that favor TCP Cubic (high BDP network)
+CUBIC_FAVORABLE = {
+    "BW": 100,     # High bandwidth (Mbps)
+    "DELAY": "80ms", # High delay
+    "LOSS": 1,     # Low to moderate loss
+    "QSIZE": 800   # Large buffer to handle high BDP
+}
 
+# Network conditions that favor TCP Reno (moderate to low BDP network)
+RENO_FAVORABLE = {
+    "BW": 20,      # Lower bandwidth (Mbps)
+    "DELAY": "5ms", # Lower delay
+    "LOSS": 2,     # Slightly higher loss (Reno handles moderate loss better)
+    "QSIZE": 30    # Smaller buffer
+}
 
 CURRENT_RUN_INDEX = 3
 CURRENT_RUN = RUNS[CURRENT_RUN_INDEX]
@@ -557,6 +571,49 @@ def parse_ss_output(ss_output, h1_ip, h2_ip, current_tcp_algo, port):
 
     return connections_data
 
+def update_network_conditions(net, condition_type="cubic"):
+    """
+    Update the network conditions to favor either Cubic or Reno.
+
+    Args:
+        net: The mininet network instance
+        condition_type: Which conditions to apply - "cubic" or "reno"
+    """
+    if condition_type.lower() == "cubic":
+        settings = CUBIC_FAVORABLE
+    else:
+        settings = RENO_FAVORABLE
+
+    print(f"\n[+] Updating network to {condition_type.upper()}-favorable conditions:")
+    print(f"    Bandwidth: {settings['BW']} Mbps")
+    print(f"    Delay: {settings['DELAY']}")
+    print(f"    Loss: {settings['LOSS']}%")
+    print(f"    Queue Size: {settings['QSIZE']} packets")
+
+    # Get the link between s1 and s2 (the bottleneck link)
+    s1, s2 = net.get('s1', 's2')
+    link = None
+    for l in net.links:
+        if (l.intf1.node == s1 and l.intf2.node == s2) or (l.intf1.node == s2 and l.intf2.node == s1):
+            link = l
+            break
+
+    if link:
+        print("updating link parameters")
+        # Update link parameters using tc
+        for intf in [link.intf1, link.intf2]:
+            print(f"Changing {intf.name}")
+            # Clear existing TC rules
+            intf.node.cmd(f'tc qdisc del dev {intf.name} root')
+            # Apply new TC rules
+            intf.node.cmd(f'tc qdisc add dev {intf.name} root handle 1: htb default 10')
+            intf.node.cmd(f'tc class add dev {intf.name} parent 1: classid 1:10 htb rate {settings["BW"]}Mbit')
+            intf.node.cmd(f'tc qdisc add dev {intf.name} parent 1:10 handle 10: netem delay {settings["DELAY"]} loss {settings["LOSS"]}% limit {settings["QSIZE"]}')
+            print(intf.node.cmd(f"tc -s qdisc show dev {intf.name}"))
+            print(intf.node.cmd(f"tc class show dev {intf.name}"))
+    else:
+        print("Error: Could not find bottleneck link between s1 and s2")
+
 def sim_algo(tcp_algo, filename, n_datapoints, args):
     """
     Simulates traffic and with the TCP Reno or Cubic algorithms and measures network data
@@ -586,6 +643,9 @@ def sim_algo(tcp_algo, filename, n_datapoints, args):
         h2_ip = h2.IP()
         print(f"h1 IP: {h1_ip}, h2 IP: {h2_ip}")
 
+        current_network = "cubic"
+        update_network_conditions(net, current_network)
+
         # --- Set TCP Algorithm ---
         print(f"\n[+] Setting TCP Congestion Control on h1 to: {tcp_algo}")
         h1.cmd(f"sysctl -w net.ipv4.tcp_congestion_control={tcp_algo}")
@@ -602,6 +662,11 @@ def sim_algo(tcp_algo, filename, n_datapoints, args):
         # Use -t 9999999 for long run, -i args.interval for reports (though we ignore output)
         h1.cmd(f'iperf -c {h2_ip} -p 5001 -t 9999999 -i {args.interval} > /dev/null &')
         time.sleep(1) # Wait for client connection to establish
+
+        # Variables for oscillation timing
+        last_oscillation_time = time.time()
+        oscillation_count = 0
+
         while True:
             ss_cmd_output = h1.cmd(f'ss -tinem -o state established dst {h2_ip}')
             parsed_data_list = parse_ss_output(ss_cmd_output, h1_ip, h2_ip, current_algo, 5001)
@@ -619,6 +684,20 @@ def sim_algo(tcp_algo, filename, n_datapoints, args):
                         print(f"Error writing to file: {e}")
                     data_history.clear()
                     break
+
+            current_time = time.time()
+            if current_time - last_oscillation_time >= 30:
+                # Toggle network conditions
+                oscillation_count += 1
+                if current_network == "cubic":
+                    current_network = "reno"
+                else:
+                    current_network = "cubic"
+
+                print(f"\n[+] Oscillation #{oscillation_count}: Switching to {current_network.upper()}-favorable network")
+                update_network_conditions(net, current_network)
+                last_oscillation_time = current_time
+
             time.sleep(args.interval)
     except Exception as e:
         print(f"\nAn error occurred: {e}")
@@ -667,13 +746,13 @@ def main():
         print("Error: History size must be positive.")
         sys.exit(1)
 
-    if args.save_history:
-        print(f"Saving history for run {CURRENT_RUN.get('RUN_NUMBER')}")
-        print(f"Current run: {CURRENT_RUN}")
-        n_datapoints = 50
-        sim_algo("reno", f"./src/data/reno_log_{CURRENT_RUN.get('RUN_NUMBER')}.txt", n_datapoints, args)
-        sim_algo("cubic", f"./src/data/cubic_log_{CURRENT_RUN.get('RUN_NUMBER')}.txt", n_datapoints, args)
-        data_history_full = deque(maxlen=n_datapoints)
+    # if args.save_history:
+    #     print(f"Saving history for run {CURRENT_RUN.get('RUN_NUMBER')}")
+    #     print(f"Current run: {CURRENT_RUN}")
+    #     n_datapoints = 50
+    #     sim_algo("reno", f"./src/data/reno_log_{CURRENT_RUN.get('RUN_NUMBER')}.txt", n_datapoints, args)
+    #     sim_algo("cubic", f"./src/data/cubic_log_{CURRENT_RUN.get('RUN_NUMBER')}.txt", n_datapoints, args)
+    #     data_history_full = deque(maxlen=n_datapoints)
 
     # Initialize the deque
     data_history = deque(maxlen=args.history)
@@ -729,6 +808,9 @@ def main():
         h2_ip = h2.IP()
         print(f"h1 IP: {h1_ip}, h2 IP: {h2_ip}")
 
+        current_network = "cubic"
+        update_network_conditions(net, current_network)
+
         # --- Set TCP Algorithm ---
         print(f"\n[+] Setting TCP Congestion Control on h1 to: {args.tcp_algo}")
         h1.cmd(f"sysctl -w net.ipv4.tcp_congestion_control={args.tcp_algo}")
@@ -763,6 +845,10 @@ def main():
 
         # net.interact() # Debug: Keep the Mininet CLI open for manual control
 
+        # Variables for oscillation timing
+        last_oscillation_time = time.time()
+        oscillation_count = 0
+
         # --- Main Data Collection Loop ---
         print(f"\nStarting data collection (every {args.interval}s, keeping last {args.history} points)... Press Ctrl+C to stop.")
         while True:
@@ -788,7 +874,7 @@ def main():
                 if args.save_history:
                     data_history_full.append(parsed_data_list[0])
                     if len(data_history_full) == n_datapoints:
-                        filename = f'./src/data/prototype_log_{CURRENT_RUN.get("RUN_NUMBER")}.txt'
+                        filename = f'./src/data/prototype_log_env_change.txt'
                         try:
                             with open(filename, 'w') as file:
                                 for row in data_history_full:
@@ -860,6 +946,19 @@ def main():
                  # Optionally append a placeholder if you need constant history length
                  # data_history.append({'timestamp': time.time(), 'cwnd': -1, ... other fields: 0 or None})
 
+
+            current_time = time.time()
+            if current_time - last_oscillation_time >= 30:
+                # Toggle network conditions
+                oscillation_count += 1
+                if current_network == "cubic":
+                    current_network = "reno"
+                else:
+                    current_network = "cubic"
+
+                print(f"\n[+] Oscillation #{oscillation_count}: Switching to {current_network.upper()}-favorable network")
+                update_network_conditions(net, current_network)
+                last_oscillation_time = current_time
 
             # Wait for the next interval
             time.sleep(args.interval)
